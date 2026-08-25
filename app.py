@@ -15,6 +15,7 @@ from blueprints.settlements import settlements_bp
 from blueprints.goals import goals_bp
 from blueprints.reports import reports_bp
 from blueprints.accounts import accounts_bp
+from blueprints.budgets import budgets_bp
 from services.ledger_service import DEFAULT_CATEGORIES, CATEGORY_ALIASES
 
 def create_app():
@@ -45,6 +46,7 @@ def create_app():
     app.register_blueprint(goals_bp)
     app.register_blueprint(reports_bp)
     app.register_blueprint(accounts_bp)
+    app.register_blueprint(budgets_bp)
 
     # Centralized Error Handlers
     @app.errorhandler(404)
@@ -224,7 +226,7 @@ def ensure_schema():
                 net_bal = total_inc - total_exp
                 cursor.execute("UPDATE accounts SET balance=%s WHERE account_id=%s", (net_bal, acc_id))
 
-            # Budgets - ensure user_id column exists and add unique index per user
+            # Budgets - Per-category & multi-currency support
             cursor.execute("""
                 SELECT COUNT(*) FROM information_schema.columns
                 WHERE table_schema = DATABASE() AND table_name = 'budgets' AND column_name = 'user_id'
@@ -232,7 +234,36 @@ def ensure_schema():
             if cursor.fetchone()[0] == 0:
                 cursor.execute("ALTER TABLE budgets ADD COLUMN user_id INT NULL")
                 cursor.execute("UPDATE budgets SET user_id = (SELECT user_id FROM users ORDER BY user_id LIMIT 1) WHERE user_id IS NULL")
-                cursor.execute("ALTER TABLE budgets ADD UNIQUE INDEX idx_budgets_user (user_id)")
+
+            cursor.execute("""
+                SELECT COUNT(*) FROM information_schema.columns
+                WHERE table_schema = DATABASE() AND table_name = 'budgets' AND column_name = 'category'
+            """)
+            if cursor.fetchone()[0] == 0:
+                cursor.execute("ALTER TABLE budgets ADD COLUMN category VARCHAR(50) NULL DEFAULT 'Overall'")
+                cursor.execute("UPDATE budgets SET category='Overall' WHERE category IS NULL")
+
+            cursor.execute("""
+                SELECT COUNT(*) FROM information_schema.columns
+                WHERE table_schema = DATABASE() AND table_name = 'budgets' AND column_name = 'currency'
+            """)
+            if cursor.fetchone()[0] == 0:
+                cursor.execute("ALTER TABLE budgets ADD COLUMN currency VARCHAR(10) NOT NULL DEFAULT 'INR'")
+
+            try:
+                cursor.execute("ALTER TABLE budgets DROP INDEX idx_budgets_user")
+            except Exception:
+                pass
+
+            cursor.execute("""
+                SELECT COUNT(*) FROM information_schema.statistics
+                WHERE table_schema = DATABASE() AND table_name = 'budgets' AND index_name = 'idx_budgets_user_cat'
+            """)
+            if cursor.fetchone()[0] == 0:
+                try:
+                    cursor.execute("ALTER TABLE budgets ADD UNIQUE INDEX idx_budgets_user_cat (user_id, category)")
+                except Exception:
+                    pass
 
             try:
                 cursor.execute("SELECT user_id, password FROM users WHERE password IS NOT NULL")

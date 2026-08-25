@@ -4,6 +4,7 @@ from db import get_db
 from services.recurring_service import advance_recurring_date, process_due_auto_charges
 from services.ledger_service import get_categories
 from services.notification_service import create_notification, get_notification_prefs
+from services.budget_service import set_budget_limit
 
 recurring_bp = Blueprint('recurring', __name__)
 
@@ -163,16 +164,13 @@ def update_recurring(id):
 def set_budget():
     if 'user_id' not in session:
         return redirect('/login')
-    new_budget = request.form['monthly_budget']
+    new_budget = float(request.form.get('monthly_budget') or request.form.get('monthly_limit') or request.form.get('amount') or 0.0)
+    category = request.form.get('category', 'Overall').strip() or 'Overall'
+    currency = request.form.get('currency', 'INR').strip() or 'INR'
     user_id = session['user_id']
 
     with get_db() as (conn, cursor):
-        cursor.execute("SELECT COUNT(*) FROM budgets WHERE user_id=%s", (user_id,))
-        exists = cursor.fetchone()[0]
-        if exists:
-            cursor.execute("UPDATE budgets SET monthly_limit=%s WHERE user_id=%s", (new_budget, user_id))
-        else:
-            cursor.execute("INSERT INTO budgets (user_id, monthly_limit) VALUES (%s, %s)", (user_id, new_budget))
+        set_budget_limit(cursor, user_id, category, new_budget, currency)
 
     flash("Budget updated successfully!", "success")
     return redirect(request.referrer or '/recurring')

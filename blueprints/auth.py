@@ -52,11 +52,12 @@ def home():
 
         # Recent Transactions
         cursor.execute(
-            "SELECT expense_id, expense_date, category, description, amount "
+            "SELECT DATE_FORMAT(expense_date, '%d %b %Y'), category, description, amount "
             "FROM expenses WHERE user_id=%s ORDER BY expense_date DESC, expense_id DESC LIMIT 5",
             (user_id,)
         )
-        recent_expenses = cursor.fetchall()
+        raw_recent = cursor.fetchall()
+        recent_expenses = [(r[0], r[1], r[2], float(r[3] or 0)) for r in raw_recent]
 
         # Category Breakdown for Chart
         cursor.execute(
