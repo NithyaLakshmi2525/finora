@@ -30,13 +30,14 @@ def create_app():
 
     # OAuth Setup
     oauth = OAuth(app)
-    google = oauth.register(
+    oauth.register(
         name='google',
         client_id=Config.GOOGLE_CLIENT_ID,
         client_secret=Config.GOOGLE_CLIENT_SECRET,
         server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
         client_kwargs={'scope': 'openid email profile'}
     )
+    app.oauth = oauth
 
     # Register Blueprints
     app.register_blueprint(auth_bp)
@@ -51,23 +52,11 @@ def create_app():
     # Centralized Error Handlers
     @app.errorhandler(404)
     def not_found_error(error):
-        return render_template(
-            'base.html',
-            page_title="Page Not Found",
-            username=session.get('username'),
-            display_name=session.get('display_name'),
-            content="<div class='p-12 text-center'><h2 class='text-2xl font-bold text-gray-200 mb-2'>404 — Page Not Found</h2><p class='text-gray-400 mb-6'>The page you requested does not exist.</p><a href='/' class='px-5 py-2.5 bg-primary text-on-primary font-semibold rounded-xl'>Return to Dashboard</a></div>"
-        ), 404
+        return render_template('404.html'), 404
 
     @app.errorhandler(500)
     def internal_error(error):
-        return render_template(
-            'base.html',
-            page_title="Server Error",
-            username=session.get('username'),
-            display_name=session.get('display_name'),
-            content="<div class='p-12 text-center'><h2 class='text-2xl font-bold text-red-400 mb-2'>500 — Internal Server Error</h2><p class='text-gray-400 mb-6'>Something went wrong. Please try refreshing or return to dashboard.</p><a href='/' class='px-5 py-2.5 bg-primary text-on-primary font-semibold rounded-xl'>Return to Dashboard</a></div>"
-        ), 500
+        return render_template('500.html'), 500
 
     return app
 

@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, session, flash, url_for
+from flask import Blueprint, render_template, request, redirect, session, flash, url_for, current_app
 from werkzeug.security import generate_password_hash, check_password_hash
 import secrets
 from db import get_db
@@ -275,3 +275,79 @@ def settings():
         monthly_budget=monthly_budget,
         active_page='settings'
     )
+
+# ----------------- GOOGLE OAUTH ROUTES -----------------
+
+@auth_bp.route('/login/google')
+def login_google():
+    oauth = getattr(current_app, 'oauth', None)
+    if not oauth:
+        flash("Google OAuth is not configured on this server.", "error")
+        return redirect('/login')
+
+    try:
+        google = oauth.create_client('google')
+        if not google:
+            flash("Google OAuth client not found.", "error")
+            return redirect('/login')
+        redirect_uri = url_for('auth.authorize_google', _external=True)
+        return google.authorize_redirect(redirect_uri)
+    except Exception as e:
+        flash(f"Google login failed: {str(e)}", "error")
+        return redirect('/login')
+
+@auth_bp.route('/authorize/google')
+def authorize_google():
+    oauth = getattr(current_app, 'oauth', None)
+    if not oauth:
+        flash("Google OAuth is not configured on this server.", "error")
+        return redirect('/login')
+
+    try:
+        google = oauth.create_client('google')
+        if not google:
+            flash("Google OAuth client not found.", "error")
+            return redirect('/login')
+
+        token = google.authorize_access_token()
+        user_info = token.get('userinfo')
+        if not user_info and hasattr(google, 'userinfo'):
+            user_info = google.userinfo()
+
+        if not user_info or not user_info.get('email'):
+            flash("Failed to retrieve user info from Google.", "error")
+            return redirect('/login')
+
+        google_email = user_info['email'].strip().lower()
+        display_name = user_info.get('name') or google_email.split('@')[0]
+
+        with get_db() as (conn, cursor):
+            cursor.execute("SELECT user_id, username, display_name FROM users WHERE email=%s OR username=%s", (google_email, google_email))
+            user = cursor.fetchone()
+
+            if not user:
+                random_pw = generate_password_hash(secrets.token_hex(32))
+                cursor.execute(
+                    "INSERT INTO users (username, email, password, display_name) VALUES (%s, %s, %s, %s)",
+                    (google_email, google_email, random_pw, display_name)
+                )
+                user_id = cursor.lastrowid
+                cursor.execute("INSERT IGNORE INTO notification_preferences (user_id) VALUES (%s)", (user_id,))
+                cursor.execute(
+                    "INSERT INTO accounts (user_id, name, account_type, balance, currency) VALUES (%s, 'Main Account', 'checking', 0.00, 'INR')",
+                    (user_id,)
+                )
+                username = google_email
+            else:
+                user_id, username, existing_display_name = user[0], user[1], user[2]
+                display_name = existing_display_name or display_name
+
+        session['user_id'] = user_id
+        session['username'] = username
+        session['display_name'] = display_name
+        flash("Logged in with Google successfully!", "success")
+        return redirect('/expenses')
+
+    except Exception as e:
+        flash(f"Google authorization failed: {str(e)}", "error")
+        return redirect('/login')
