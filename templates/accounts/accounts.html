@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Accounts | Finora</title>
+<script>
+if (localStorage.getItem('theme') === 'light') document.documentElement.classList.remove('dark');
+</script>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        primary: '#4edea3',
+        'on-primary': '#003822',
+        secondary: '#a3d4ff',
+        background: '#0b0f17',
+        'surface-container-lowest': '#0d131f',
+        'surface-container-low': '#121826',
+        'surface-container': '#182030',
+        'surface-container-high': '#1e293b',
+        'on-surface': '#f1f5f9',
+        'on-surface-variant': '#94a3b8',
+        'outline-variant': '#334155',
+        error: '#ffb4ab',
+      },
+      fontFamily: {
+        sans: ['Plus Jakarta Sans', 'sans-serif'],
+        display: ['Space Grotesk', 'sans-serif'],
+      }
+    }
+  }
+}
+</script>
+<style>
+.inp {
+  width: 100%;
+  background-color: #121826;
+  border: 1px solid #334155;
+  border-radius: 0.75rem;
+  padding: 0.625rem 0.875rem;
+  font-size: 0.875rem;
+  color: #f1f5f9;
+  transition: border-color 0.2s;
+}
+.inp:focus {
+  outline: none;
+  border-color: #4edea3;
+}
+</style>
+</head>
+<body class="bg-background text-on-surface font-sans antialiased min-h-screen flex flex-col">
+
+<div class="flex flex-1">
+  {% include 'partials/sidebar.html' %}
+
+  <main class="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+      <div>
+        <h1 class="text-2xl sm:text-3xl font-display font-extrabold tracking-tight">Accounts &amp; Ledger</h1>
+        <p class="text-xs sm:text-sm text-on-surface-variant mt-1">Manage checking, savings, credit cards, and digital wallets with real-time balances.</p>
+      </div>
+      <button onclick="document.getElementById('addAccountModal').classList.remove('hidden')"
+              class="inline-flex items-center justify-center gap-2 bg-primary text-on-primary font-bold px-5 py-2.5 rounded-xl hover:brightness-110 transition-all text-sm shadow-lg shadow-primary/15">
+        <span class="material-symbols-outlined" style="font-size:18px;">add</span> Add Account
+      </button>
+    </div>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="mb-6 space-y-2">
+          {% for category, message in messages %}
+            <div class="p-4 rounded-xl text-sm font-semibold flex items-center gap-3 {% if category == 'error' %}bg-error/10 text-error border border-error/30{% else %}bg-primary/10 text-primary border border-primary/30{% endif %}">
+              <span class="material-symbols-outlined" style="font-size:18px;">{% if category == 'error' %}error{% else %}check_circle{% endif %}</span>
+              {{ message }}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <!-- Metrics Row -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+      <div class="bg-surface-container border border-outline-variant rounded-2xl p-5">
+        <p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-2">Total Net Worth</p>
+        <p class="text-2xl sm:text-3xl font-extrabold leading-none {% if net_worth >= 0 %}text-primary{% else %}text-error{% endif %}">
+          ₹{{ "{:,.2f}".format(net_worth) }}
+        </p>
+        <p class="text-xs text-on-surface-variant mt-2">Combined across all active accounts</p>
+      </div>
+
+      <div class="bg-surface-container border border-outline-variant rounded-2xl p-5">
+        <p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-2">Active Accounts</p>
+        <p class="text-2xl sm:text-3xl font-extrabold leading-none text-on-surface">
+          {{ accounts|length }}
+        </p>
+        <p class="text-xs text-on-surface-variant mt-2">Tracking active financial sources</p>
+      </div>
+
+      <div class="bg-surface-container border border-outline-variant rounded-2xl p-5">
+        <p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-2">Primary Currency</p>
+        <p class="text-2xl sm:text-3xl font-extrabold leading-none text-secondary">
+          INR (₹)
+        </p>
+        <p class="text-xs text-on-surface-variant mt-2">Base currency preference</p>
+      </div>
+    </div>
+
+    <!-- Accounts Cards Grid -->
+    <h2 class="text-lg font-bold mb-4 flex items-center gap-2">
+      <span class="material-symbols-outlined text-primary" style="font-size:20px;">account_balance</span>
+      Your Accounts
+    </h2>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-8">
+      {% for acc in accounts %}
+        {% set icon = '🏦' %}
+        {% if acc.account_type == 'savings' %}{% set icon = '💰' %}
+        {% elif acc.account_type == 'credit_card' %}{% set icon = '💳' %}
+        {% elif acc.account_type == 'cash' %}{% set icon = '💵' %}
+        {% elif acc.account_type == 'wallet' %}{% set icon = '📱' %}
+        {% endif %}
+        
+        <div class="bg-surface-container border border-outline-variant rounded-2xl p-5 flex flex-col justify-between hover:border-primary/40 transition-all">
+          <div>
+            <div class="flex items-center justify-between gap-3 mb-4">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-surface-container-high flex items-center justify-center text-xl">
+                  {{ icon }}
+                </div>
+                <div>
+                  <h3 class="font-bold text-base text-on-surface leading-snug">{{ acc.name }}</h3>
+                  <span class="text-xs text-on-surface-variant capitalize">{{ acc.account_type | replace('_', ' ') }}</span>
+                </div>
+              </div>
+              <span class="text-xs font-bold px-2.5 py-1 rounded-lg bg-surface-container-high text-on-surface-variant">
+                {{ acc.currency }}
+              </span>
+            </div>
+
+            <div class="mb-4">
+              <span class="text-xs text-on-surface-variant block mb-1">Current Balance</span>
+              <p class="text-2xl font-extrabold leading-tight {% if acc.balance >= 0 %}text-primary{% else %}text-error{% endif %}">
+                ₹{{ "{:,.2f}".format(acc.balance) }}
+              </p>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between pt-4 border-t border-outline-variant/60 text-xs">
+            <span class="text-on-surface-variant/70">Created {{ acc.created_at.strftime('%b %d, %Y') if acc.created_at else '' }}</span>
+            <div class="flex items-center gap-2">
+              <a href="/toggle-account/{{ acc.account_id }}"
+                 onclick="return confirm('Archive account {{ acc.name }}?')"
+                 class="text-on-surface-variant hover:text-error transition-colors p-1" title="Archive Account">
+                <span class="material-symbols-outlined" style="font-size:18px;">archive</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      {% else %}
+        <div class="col-span-full bg-surface-container border border-outline-variant rounded-2xl p-12 text-center text-on-surface-variant">
+          <p class="text-base font-semibold mb-2">No accounts found.</p>
+          <p class="text-xs mb-4">Create your first checking, savings, or credit card account to track balances.</p>
+          <button onclick="document.getElementById('addAccountModal').classList.remove('hidden')"
+                  class="bg-primary text-on-primary font-bold px-4 py-2 rounded-xl text-xs">
+            + Add Account
+          </button>
+        </div>
+      {% endfor %}
+    </div>
+  </main>
+</div>
+
+<!-- Add Account Modal -->
+<div id="addAccountModal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+  <div class="bg-surface-container border border-outline-variant rounded-2xl p-6 max-w-md w-full shadow-2xl">
+    <div class="flex items-center justify-between mb-5">
+      <h3 class="text-lg font-bold">Add New Account</h3>
+      <button onclick="document.getElementById('addAccountModal').classList.add('hidden')" class="text-on-surface-variant hover:text-on-surface">
+        <span class="material-symbols-outlined" style="font-size:20px;">close</span>
+      </button>
+    </div>
+
+    <form action="/add-account" method="POST" class="space-y-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+      <div>
+        <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Account Name</label>
+        <input type="text" name="name" required placeholder="e.g. HDFC Checking / SBI Savings" class="inp">
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Account Type</label>
+        <select name="account_type" class="inp capitalize">
+          {% for t_key, t_label, t_icon in account_types %}
+            <option value="{{ t_key }}">{{ t_icon }} {{ t_label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Initial Balance (₹)</label>
+        <input type="number" name="initial_balance" step="0.01" value="0.00" class="inp">
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Currency</label>
+        <select name="currency" class="inp">
+          <option value="INR">INR (₹)</option>
+          <option value="USD">USD ($)</option>
+          <option value="EUR">EUR (€)</option>
+          <option value="GBP">GBP (£)</option>
+        </select>
+      </div>
+
+      <div class="flex items-center justify-end gap-3 pt-4 border-t border-outline-variant">
+        <button type="button" onclick="document.getElementById('addAccountModal').classList.add('hidden')"
+                class="px-4 py-2 rounded-xl text-xs font-bold border border-outline-variant text-on-surface-variant hover:bg-surface-container-high">
+          Cancel
+        </button>
+        <button type="submit" class="px-5 py-2 rounded-xl text-xs font-bold bg-primary text-on-primary hover:brightness-110">
+          Create Account
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+</body>
+</html>

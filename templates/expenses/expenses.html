@@ -184,6 +184,16 @@
         <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Date</label>
         <input type="date" name="expense_date" id="fieldDate" required class="inp">
       </div>
+      {% if user_accounts %}
+      <div>
+        <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Account</label>
+        <select name="account_id" id="fieldAccount" class="inp">
+          {% for acc in user_accounts %}
+          <option value="{{ acc.account_id }}">{{ acc.name }} (₹{{ "{:,.2f}".format(acc.balance) }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
     </div>
     <div class="panel-footer">
       <button type="button" onclick="closePanel()"

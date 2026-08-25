@@ -14,6 +14,7 @@ from blueprints.recurring import recurring_bp
 from blueprints.settlements import settlements_bp
 from blueprints.goals import goals_bp
 from blueprints.reports import reports_bp
+from blueprints.accounts import accounts_bp
 from services.ledger_service import DEFAULT_CATEGORIES, CATEGORY_ALIASES
 
 def create_app():
@@ -43,6 +44,7 @@ def create_app():
     app.register_blueprint(settlements_bp)
     app.register_blueprint(goals_bp)
     app.register_blueprint(reports_bp)
+    app.register_blueprint(accounts_bp)
 
     # Centralized Error Handlers
     @app.errorhandler(404)
@@ -167,6 +169,60 @@ def ensure_schema():
                     goal_milestones TINYINT(1) NOT NULL DEFAULT 1
                 )
             """)
+
+            # Accounts - Multi-account support
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS accounts (
+                    account_id INT AUTO_INCREMENT PRIMARY KEY,
+                    user_id INT NOT NULL,
+                    name VARCHAR(100) NOT NULL,
+                    account_type VARCHAR(20) NOT NULL DEFAULT 'checking',
+                    balance DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                    currency VARCHAR(10) NOT NULL DEFAULT 'INR',
+                    is_active TINYINT(1) NOT NULL DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_accounts_user (user_id),
+                    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            """)
+
+            cursor.execute("""
+                SELECT COUNT(*) FROM information_schema.columns
+                WHERE table_schema = DATABASE() AND table_name = 'expenses' AND column_name = 'account_id'
+            """)
+            if cursor.fetchone()[0] == 0:
+                cursor.execute("ALTER TABLE expenses ADD COLUMN account_id INT NULL")
+
+            cursor.execute("""
+                SELECT COUNT(*) FROM information_schema.columns
+                WHERE table_schema = DATABASE() AND table_name = 'income' AND column_name = 'account_id'
+            """)
+            if cursor.fetchone()[0] == 0:
+                cursor.execute("ALTER TABLE income ADD COLUMN account_id INT NULL")
+
+            cursor.execute("SELECT user_id FROM users")
+            user_rows = cursor.fetchall()
+            for (uid,) in user_rows:
+                cursor.execute("SELECT account_id FROM accounts WHERE user_id=%s AND is_active=1 ORDER BY account_id ASC LIMIT 1", (uid,))
+                acc_row = cursor.fetchone()
+                if not acc_row:
+                    cursor.execute(
+                        "INSERT INTO accounts (user_id, name, account_type, balance, currency) VALUES (%s, 'Main Account', 'checking', 0.00, 'INR')",
+                        (uid,)
+                    )
+                    acc_id = cursor.lastrowid
+                else:
+                    acc_id = acc_row[0]
+
+                cursor.execute("UPDATE expenses SET account_id=%s WHERE user_id=%s AND account_id IS NULL", (acc_id, uid))
+                cursor.execute("UPDATE income SET account_id=%s WHERE user_id=%s AND account_id IS NULL", (acc_id, uid))
+
+                cursor.execute("SELECT COALESCE(SUM(amount), 0) FROM income WHERE user_id=%s AND account_id=%s", (uid, acc_id))
+                total_inc = float(cursor.fetchone()[0])
+                cursor.execute("SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE user_id=%s AND account_id=%s", (uid, acc_id))
+                total_exp = float(cursor.fetchone()[0])
+                net_bal = total_inc - total_exp
+                cursor.execute("UPDATE accounts SET balance=%s WHERE account_id=%s", (net_bal, acc_id))
 
             # Budgets - ensure user_id column exists and add unique index per user
             cursor.execute("""

@@ -315,6 +315,16 @@
               <input type="date" name="date" required class="inp"
                      value="{% if edit_entry is defined and edit_entry %}{{ edit_entry[1] }}{% endif %}">
             </div>
+            {% if user_accounts %}
+            <div>
+              <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Account</label>
+              <select name="account_id" class="inp">
+                {% for acc in user_accounts %}
+                <option value="{{ acc.account_id }}" {% if edit_entry is defined and edit_entry and edit_entry[6] == acc.account_id %}selected{% endif %}>{{ acc.name }} (₹{{ "{:,.2f}".format(acc.balance) }})</option>
+                {% endfor %}
+              </select>
+            </div>
+            {% endif %}
           </div>
           <p class="text-[11px] text-on-surface-variant/45 mt-2.5 leading-snug">
             <span class="font-semibold">Note:</span> Loan Received is tracked as cash inflow, not earned income, in analysis &amp; reports.
