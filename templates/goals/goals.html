@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Goals | Finora</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/npm/geist@1.3.0/dist/fonts/geist.min.css" rel="stylesheet"/>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          "surface-dim":            "#10141a",
+          "background":             "#10141a",
+          "surface-container-low":  "#181c22",
+          "on-primary":             "#003824",
+          "primary-container":      "#10b981",
+          "surface-container":      "#1c2026",
+          "on-primary-container":   "#00422b",
+          "primary":                "#4edea3",
+          "on-surface":             "#dfe2eb",
+          "on-surface-variant":     "#bbcabf",
+          "surface-variant":        "#31353c",
+          "outline-variant":        "#3c4a42",
+          "outline":                "#86948a",
+          "surface":                "#10141a",
+          "surface-container-high": "#262a31",
+          "secondary":              "#adc6ff",
+          "error":                  "#f87171",
+        },
+        fontFamily: {
+          sans:    ["Geist", "Inter", "sans-serif"],
+          display: ["Geist", "sans-serif"],
+        },
+      },
+    },
+  }
+</script>
+<style>
+  html { color-scheme: dark; }
+  body { font-family:'Geist',sans-serif; background:#10141a; color:#dfe2eb; -webkit-font-smoothing:antialiased; }
+  .material-symbols-outlined { font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; }
+
+  .nav-link { display:flex; align-items:center; gap:10px; padding:9px 14px; border-radius:10px; color:#bbcabf; text-decoration:none; font-size:14px; font-weight:500; transition:background .15s,color .15s; }
+  .nav-link:hover  { background:#1c2026; color:#dfe2eb; }
+  .nav-link.active { background:#1c2026; color:#4edea3; }
+
+  ::-webkit-scrollbar { width:5px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:#3c4a42; border-radius:3px; }
+
+  /* ── Goal cards ── */
+  .goal-card {
+    background:#1c2026; border:1px solid #3c4a42; border-radius:16px;
+    padding:22px; transition:border-color .18s, box-shadow .18s, transform .18s;
+    display:flex; flex-direction:column; text-decoration:none; color:inherit;
+  }
+  .goal-card:hover { border-color:var(--goal-accent, #4edea3); box-shadow:0 8px 28px rgba(78,222,163,.1); transform:translateY(-2px); }
+  .goal-card.target-reached { border-color:rgba(251,191,36,.35); }
+  .goal-card.target-reached:hover { border-color:#fbbf24; box-shadow:0 8px 28px rgba(251,191,36,.12); }
+  .goal-card.overdue { border-color:rgba(248,113,113,.3); }
+  .goal-card.closed-card { opacity:.6; }
+  .goal-card.closed-card:hover { border-color:#3c4a42; box-shadow:none; transform:none; opacity:.85; }
+
+  /* ── Card overflow menu (⋮) ── */
+  .card-menu-btn { width:26px; height:26px; border-radius:8px; display:flex; align-items:center; justify-content:center; color:#86948a; background:transparent; border:1px solid transparent; cursor:pointer; transition:all .15s; flex-shrink:0; }
+  .card-menu-btn:hover { background:#262a31; color:#dfe2eb; }
+  .card-menu { position:absolute; top:calc(100% + 4px); right:0; background:#1c2026; border:1px solid #3c4a42; border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.5); z-index:50; min-width:150px; overflow:hidden; display:none; }
+  .card-menu.open { display:block; }
+  .card-menu button, .card-menu a { display:flex; align-items:center; gap:8px; width:100%; text-align:left; padding:9px 12px; font-size:13px; font-weight:600; color:#dfe2eb; background:none; border:none; cursor:pointer; transition:background .1s; text-decoration:none; }
+  .card-menu button:hover, .card-menu a:hover { background:#262a31; }
+  .card-menu button.danger, .card-menu a.danger { color:#f87171; }
+
+  /* ── Balance breakdown strip ── */
+  .balance-chip { background:#1c2026; border:1px solid #3c4a42; border-radius:16px; padding:16px 18px; }
+
+  /* ── Progress bar ── */
+  .prog-track { height:6px; background:#262a31; border-radius:99px; overflow:hidden; }
+  .prog-fill  { height:6px; border-radius:99px; transition:width .5s cubic-bezier(.4,0,.2,1); min-width:0; }
+
+  /* ── Icon tile ── */
+  .goal-icon-tile { width:38px; height:38px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
+</style>
+</head>
+<body class="bg-surface text-on-surface min-h-screen">
+
+<!-- ═══════════════════ TOAST ═══════════════════ -->
+<div id="toast"
+  class="fixed bottom-6 right-6 bg-surface-container-high border border-outline-variant text-on-surface text-sm font-semibold px-5 py-3 rounded-xl shadow-2xl z-50 flex items-center gap-2.5 opacity-0 pointer-events-none transition-opacity duration-200">
+  <span class="material-symbols-outlined text-primary" id="toastIcon" style="font-size:16px;">check_circle</span>
+  <span id="toastMsg"></span>
+</div>
+
+<div class="flex min-h-screen">
+
+  {% include 'partials/sidebar.html' %}
+
+  <!-- ═══════════════════ MAIN ═══════════════════ -->
+  <main class="flex-1 overflow-y-auto min-w-0">
+    {% include 'partials/mobile_topbar.html' %}
+    <div class="max-w-7xl mx-auto px-7 py-8">
+
+      <!-- ── Page Header ── -->
+      <div class="flex items-center justify-between mb-7 flex-wrap gap-4">
+        <div>
+          <h1 class="text-[22px] font-extrabold tracking-tight leading-tight">Savings Goals</h1>
+          <p class="text-on-surface-variant text-sm mt-0.5">Track your financial goals and stay on target.</p>
+        </div>
+        <a href="/add-goal"
+          class="flex items-center gap-2 bg-primary text-on-primary px-5 py-2.5 rounded-xl font-bold hover:brightness-110 transition-all text-sm shadow-lg shadow-primary/15">
+          <span class="material-symbols-outlined" style="font-size:17px;">add</span>
+          New Goal
+        </a>
+      </div>
+
+      <!-- ── Balance Breakdown ── -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-3">
+        <div class="balance-chip">
+          <p class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Total Balance</p>
+          <p class="text-[22px] font-extrabold leading-none {{ 'text-on-surface' if total_balance >= 0 else 'text-error' }}">₹{{ "{:,.0f}".format(total_balance) }}</p>
+          <p class="text-xs text-on-surface-variant mt-2">Income − Expenses</p>
+        </div>
+        <div class="balance-chip">
+          <p class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Reserved for Goals</p>
+          <p class="text-[22px] font-extrabold text-secondary leading-none">₹{{ "{:,.0f}".format(reserved_for_goals) }}</p>
+          <p class="text-xs text-on-surface-variant mt-2">Currently reserved</p>
+        </div>
+        <div class="balance-chip">
+          <p class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Available Balance</p>
+          <p class="text-[22px] font-extrabold leading-none {{ 'text-primary' if available_balance >= 0 else 'text-error' }}">₹{{ "{:,.0f}".format(available_balance) }}</p>
+          <p class="text-xs text-on-surface-variant mt-2">Safe to spend right now</p>
+        </div>
+      </div>
+
+      {% if available_balance < 0 %}
+      <div class="flex items-center gap-2.5 bg-error/8 border border-error/25 text-error text-xs font-semibold px-4 py-3 rounded-xl mb-5">
+        <span class="material-symbols-outlined" style="font-size:16px;">warning</span>
+        You've reserved more for goals than your current balance — Available Balance is negative.
+      </div>
+      {% else %}
+      <div class="mb-5"></div>
+      {% endif %}
+
+      <!-- ── Summary Cards ── -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <div class="bg-surface-container border border-outline-variant rounded-2xl p-5">
+          <p class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Active Goals</p>
+          <p class="text-[26px] font-extrabold leading-none">{{ active_count }}</p>
+          <p class="text-xs text-on-surface-variant mt-2">In progress</p>
+        </div>
+        <div class="bg-surface-container border border-outline-variant rounded-2xl p-5">
+          <p class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Total Target</p>
+          <p class="text-[26px] font-extrabold leading-none">₹{{ "{:,.0f}".format(total_target) }}</p>
+          <p class="text-xs text-on-surface-variant mt-2">Combined target</p>
+        </div>
+        <div class="bg-surface-container border border-outline-variant rounded-2xl p-5">
+          <p class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Overall Progress</p>
+          <p class="text-[26px] font-extrabold text-secondary leading-none">{{ overall_progress }}%</p>
+          <p class="text-xs text-on-surface-variant mt-2">₹{{ "{:,.0f}".format(reserved_for_goals) }} of ₹{{ "{:,.0f}".format(total_target) }} reserved</p>
+        </div>
+      </div>
+
+      <!-- ── Active Goal Cards ── -->
+      {% if goals %}
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 auto-rows-min">
+        {% for goal in goals %}
+        <div onclick="location.href='/goals/{{ goal.id }}'" class="goal-card {% if goal.status == 'target_reached' %}target-reached{% elif goal.status == 'overdue' %}overdue{% endif %}" style="--goal-accent:{{ goal.color }}; cursor:pointer;">
+          <div class="flex items-start justify-between gap-3 mb-2.5">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <div class="goal-icon-tile" style="background:{{ goal.color }}22;">{{ goal.icon }}</div>
+              <h3 class="font-bold text-[15px] text-on-surface leading-snug truncate">{{ goal.name }}</h3>
+            </div>
+            <div class="flex items-center gap-1.5 flex-shrink-0">
+              {% if goal.status == 'target_reached' %}
+              <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg bg-amber-400/10 text-amber-400 flex-shrink-0">✔ Target Reached</span>
+              {% elif goal.status == 'overdue' %}
+              <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg bg-error/10 text-error flex-shrink-0">⚠ Overdue</span>
+              {% else %}
+              <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg bg-primary/10 text-primary flex-shrink-0">In Progress</span>
+              {% endif %}
+              <div class="relative flex-shrink-0" onclick="event.stopPropagation();">
+                <button type="button" class="card-menu-btn" onclick="toggleCardMenu(event, {{ goal.id }})" title="More actions">
+                  <span class="material-symbols-outlined" style="font-size:17px;">more_vert</span>
+                </button>
+                <div class="card-menu" id="cardMenu-{{ goal.id }}">
+                  <button type="button" onclick="location.href='/goals/{{ goal.id }}'"><span class="material-symbols-outlined" style="font-size:15px;">visibility</span> View</button>
+                  <button type="button" onclick="location.href='/edit-goal/{{ goal.id }}'"><span class="material-symbols-outlined" style="font-size:15px;">edit</span> Edit</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex items-end justify-between gap-2 mb-2">
+            <div>
+              <span class="text-[20px] font-extrabold text-on-surface">₹{{ "{:,.0f}".format(goal.current) }}</span>
+              <span class="text-sm text-on-surface-variant font-medium"> / ₹{{ "{:,.0f}".format(goal.target) }}</span>
+            </div>
+            <span class="text-sm font-bold text-on-surface-variant flex-shrink-0">{{ goal.percent }}%</span>
+          </div>
+
+          <div class="prog-track mb-2">
+            <div class="prog-fill" style="width:{{ goal.bar_width }}%; background:{{ goal.color }};"></div>
+          </div>
+
+          <div class="flex items-center justify-between gap-2 flex-wrap mb-2">
+            {% if goal.status == 'target_reached' %}
+              <span class="text-xs font-semibold text-amber-400">🎉 Target reached! Still reserved.</span>
+            {% else %}
+              <span class="text-xs text-on-surface-variant">₹{{ "{:,.0f}".format(goal.remaining) }} remaining</span>
+            {% endif %}
+            {% if goal.target_date %}
+            <span class="text-xs text-on-surface-variant flex items-center gap-1 flex-shrink-0">
+              <span class="material-symbols-outlined" style="font-size:13px;">calendar_month</span>
+              Target: {{ goal.target_date }}
+            </span>
+            {% endif %}
+          </div>
+
+          {% if goal.status == 'in_progress' and goal.pace_message %}
+          <p class="text-xs font-semibold text-secondary mb-1">⚡ {{ goal.pace_message }}</p>
+          {% endif %}
+
+          <p class="text-[11px] text-on-surface-variant/70 mt-auto pt-2.5 border-t border-outline-variant/40">
+            {% if goal.last_contribution %}
+              {% if goal.last_contribution.is_withdrawal %}
+              Last activity: <span class="font-semibold text-on-surface-variant">Withdrawal ₹{{ "{:,.0f}".format(goal.last_contribution.amount | abs) }}</span> · {{ goal.last_contribution.date }}
+              {% else %}
+              Last activity: <span class="font-semibold text-on-surface-variant">Deposit +₹{{ "{:,.0f}".format(goal.last_contribution.amount) }}</span> · {{ goal.last_contribution.date }}
+              {% endif %}
+            {% else %}
+            No contributions yet
+            {% endif %}
+          </p>
+        </div>
+        {% endfor %}
+      </div>
+
+      {% elif not closed_goals %}
+      <!-- Empty state -->
+      <div class="bg-surface-container border border-outline-variant rounded-2xl p-12 text-center">
+        <span class="material-symbols-outlined text-on-surface-variant/25 mb-3 block" style="font-size:44px;">savings</span>
+        <h3 class="font-bold text-on-surface mb-1">No savings goals yet</h3>
+        <p class="text-sm text-on-surface-variant mb-5">Create your first goal and start tracking progress toward it.</p>
+        <a href="/add-goal"
+          class="inline-flex items-center gap-2 bg-primary text-on-primary px-5 py-2.5 rounded-xl font-bold hover:brightness-110 transition-all text-sm">
+          <span class="material-symbols-outlined" style="font-size:17px;">add</span>
+          Create First Goal
+        </a>
+      </div>
+      {% endif %}
+
+      <!-- ── Closed Goals ── -->
+      {% if closed_goals %}
+      <div class="mt-7">
+        <div class="flex items-center gap-2 mb-4">
+          <span class="material-symbols-outlined text-on-surface-variant" style="font-size:18px;">inventory_2</span>
+          <h2 class="text-sm font-bold text-on-surface-variant">Closed Goals</h2>
+          <span class="text-xs text-on-surface-variant/60">({{ closed_goals | length }})</span>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {% for goal in closed_goals %}
+          <div class="goal-card closed-card">
+            <div class="flex items-start justify-between gap-3 mb-2.5">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <div class="goal-icon-tile" style="background:#31353c;">{{ goal.icon }}</div>
+                <h3 class="font-bold text-[15px] text-on-surface-variant leading-snug truncate">{{ goal.name }}</h3>
+              </div>
+              <span class="text-xs font-bold px-2.5 py-1 rounded-lg bg-on-surface-variant/10 text-on-surface-variant flex-shrink-0">Closed</span>
+            </div>
+            <p class="text-xs text-on-surface-variant mb-3">Target was ₹{{ "{:,.0f}".format(goal.target) }} · Closed {{ goal.closed_at_display }}</p>
+            <div class="pt-2.5 border-t border-outline-variant/40 flex items-center justify-between">
+              <a href="/goals/{{ goal.id }}" class="text-xs text-secondary font-semibold hover:underline">View →</a>
+              <form method="POST" action="/restore-goal/{{ goal.id }}" class="inline">
+                <button type="submit" class="text-xs text-primary font-semibold hover:underline">Restore</button>
+              </form>
+              <form method="POST" action="/delete-goal/{{ goal.id }}" class="inline" onsubmit="return confirm('Permanently delete this goal? This cannot be undone.')">
+                <button type="submit" class="text-xs text-error/70 font-semibold hover:text-error bg-transparent border-0 p-0 cursor-pointer">Delete</button>
+              </form>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+    </div>
+  </main>
+</div>
+
+<script>
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAllCardMenus(); });
+
+function toggleCardMenu(e, id) {
+  e.preventDefault();
+  e.stopPropagation();
+  const target = document.getElementById('cardMenu-' + id);
+  const isOpen = target.classList.contains('open');
+  closeAllCardMenus();
+  if (!isOpen) target.classList.add('open');
+}
+function closeAllCardMenus() {
+  document.querySelectorAll('.card-menu.open').forEach(m => m.classList.remove('open'));
+}
+document.addEventListener('click', closeAllCardMenus);
+
+function showToast(message, type) {
+  const toast = document.getElementById('toast');
+  const icon  = document.getElementById('toastIcon');
+  document.getElementById('toastMsg').textContent = message;
+  icon.textContent = type === 'error' ? 'error' : 'check_circle';
+  icon.className = 'material-symbols-outlined ' + (type === 'error' ? 'text-error' : 'text-primary');
+  icon.style.fontSize = '16px';
+  toast.style.opacity = '1';
+  setTimeout(() => { toast.style.opacity = '0'; }, 3200);
+}
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+      showToast("{{ message }}", "{{ 'error' if category == 'error' else 'success' }}");
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+</script>
+</body>
+</html>

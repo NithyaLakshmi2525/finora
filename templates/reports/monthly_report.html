@@ -1,0 +1,1209 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Reports | Finora</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/npm/geist@1.3.0/dist/fonts/geist.min.css" rel="stylesheet"/>
+<script>
+  tailwind.config = {
+    darkMode:"class",
+    theme:{
+      extend:{
+        colors:{
+          "surface-dim":"#10141a","background":"#10141a","surface-container-low":"#181c22",
+          "on-primary":"#003824","primary-container":"#10b981","surface-container":"#1c2026",
+          "on-primary-container":"#00422b","primary":"#4edea3","on-surface":"#dfe2eb",
+          "on-surface-variant":"#bbcabf","surface-variant":"#31353c","outline-variant":"#3c4a42",
+          "outline":"#86948a","surface":"#10141a","surface-container-high":"#262a31",
+          "secondary":"#adc6ff","danger":"#f87171","warning":"#facc15",
+        },
+        fontFamily:{ sans:["Geist","Inter","sans-serif"], display:["Geist","sans-serif"] },
+      },
+    },
+  }
+</script>
+<style>
+  html{color-scheme:dark}
+  body{font-family:'Geist',sans-serif;background:#10141a;color:#dfe2eb;-webkit-font-smoothing:antialiased}
+  .material-symbols-outlined{font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24}
+
+  /* Sidebar */
+  .nav-link{display:flex;align-items:center;gap:10px;padding:9px 14px;border-radius:10px;color:#bbcabf;text-decoration:none;font-size:14px;font-weight:500;transition:background .15s,color .15s}
+  .nav-link:hover{background:#1c2026;color:#dfe2eb}
+  .nav-link.active{background:#1c2026;color:#4edea3}
+
+  /* Tabs */
+  .tab-link{display:flex;align-items:center;gap:6px;padding:10px 16px;font-size:13px;font-weight:700;color:#86948a;text-decoration:none;border-bottom:2px solid transparent;transition:color .15s,border-color .15s;white-space:nowrap}
+  .tab-link:hover{color:#dfe2eb}
+  .tab-link.active{color:#4edea3;border-bottom-color:#4edea3}
+
+  /* Stat card */
+  .stat-card{background:#1c2026;border:1px solid #3c4a42;border-radius:16px;padding:20px 22px;transition:border-color .2s}
+  .stat-card:hover{border-color:#4edea342}
+
+  /* Table */
+  .data-table{width:100%;border-collapse:collapse}
+  .data-table th{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#86948a;padding:10px 14px;text-align:left;border-bottom:1px solid #3c4a42}
+  .data-table td{padding:11px 14px;font-size:14px;border-bottom:1px solid #262a31;color:#dfe2eb;transition:background .1s}
+  .data-table tr:last-child td{border-bottom:none}
+  .data-table tbody tr{cursor:pointer}
+  .data-table tbody tr:hover td{background:#1f2937}
+
+  /* Progress */
+  .prog-track{height:6px;background:#262a31;border-radius:3px;overflow:hidden}
+  .prog-fill{height:100%;background:linear-gradient(90deg,#4edea3,#adc6ff);border-radius:3px;transition:width .5s cubic-bezier(.4,0,.2,1)}
+
+  /* Scrollbar */
+  ::-webkit-scrollbar{width:5px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:#3c4a42;border-radius:3px}
+
+  /* Transaction item */
+  .tx-item{display:flex;align-items:center;gap:12px;padding:11px 16px;border-radius:12px;transition:background .12s;cursor:pointer;text-decoration:none;color:inherit}
+  .tx-item:hover{background:#262a31}
+  .tx-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;background:#262a31;border:1px solid #3c4a42}
+
+  /* Badges */
+  .badge{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;padding:3px 8px;border-radius:20px}
+  .badge-up  {background:rgba(248,113,113,.12);color:#f87171;border:1px solid rgba(248,113,113,.28)}
+  .badge-dn  {background:rgba(78,222,163,.12);color:#4edea3;border:1px solid rgba(78,222,163,.28)}
+  .badge-flat{background:rgba(173,198,255,.10);color:#adc6ff;border:1px solid rgba(173,198,255,.22)}
+  .badge-warn{background:rgba(250,204,21,.12);color:#facc15;border:1px solid rgba(250,204,21,.28)}
+
+  /* Date range input (used on Exports tab) */
+  .date-inp{background:#10141a;border:1px solid #3c4a42;border-radius:8px;padding:7px 10px;color:#dfe2eb;font-size:12px;color-scheme:dark;width:140px}
+  .date-inp:focus{outline:none;border-color:#4edea3}
+  .export-chip{padding:7px 14px;border-radius:20px;font-size:12.5px;font-weight:700;border:1px solid #3c4a42;color:#bbcabf;background:transparent;cursor:pointer;transition:all .15s;white-space:nowrap}
+  .export-chip:hover{background:#262a31;color:#dfe2eb}
+  .export-chip.active{background:rgba(78,222,163,.1);color:#4edea3;border-color:rgba(78,222,163,.32)}
+
+  /* Heatmap */
+  .heatmap-cell{width:14px;height:14px;border-radius:3px;cursor:pointer;transition:opacity .15s,transform .12s;flex-shrink:0}
+  .heatmap-cell:hover{opacity:.75;transform:scale(1.3)}
+  .heat-0{background:#1f2937}
+  .heat-1{background:rgba(78,222,163,.25)}
+  .heat-2{background:rgba(78,222,163,.5)}
+  .heat-3{background:rgba(78,222,163,.75)}
+  .heat-4{background:#4edea3}
+
+  /* Tooltip */
+  #heatTip{position:fixed;background:#1c2026;border:1px solid #3c4a42;border-radius:10px;padding:8px 12px;font-size:12px;pointer-events:none;z-index:999;display:none;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+
+  /* Skeleton pulse for chart load */
+  .chart-skeleton{animation:pulse 1.5s ease-in-out infinite;background:#262a31;border-radius:8px}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+</style>
+</head>
+<body class="bg-surface text-on-surface min-h-screen">
+<div class="flex min-h-screen">
+
+{% include 'partials/sidebar.html' %}
+
+<!-- ═══════════ MAIN ═══════════ -->
+<main class="flex-1 overflow-y-auto min-w-0">
+{% include 'partials/mobile_topbar.html' %}
+<div class="max-w-7xl mx-auto px-7 py-8">
+
+  <!-- Page header -->
+  <div class="mb-6">
+    <h1 class="text-[22px] font-extrabold tracking-tight leading-tight">Reports &amp; Analytics</h1>
+    <p class="text-on-surface-variant text-sm mt-0.5">Analyze spending patterns, categories, and trends.</p>
+  </div>
+
+  <!-- Tabs -->
+  <div class="flex gap-1 border-b border-outline-variant mb-7 overflow-x-auto">
+    <a href="/monthly-report?tab=overview"  class="tab-link {% if active_tab=='overview'  %}active{% endif %}">
+      <span class="material-symbols-outlined" style="font-size:16px;">calendar_month</span>Overview</a>
+    <a href="/monthly-report?tab=analytics" class="tab-link {% if active_tab=='analytics' %}active{% endif %}">
+      <span class="material-symbols-outlined" style="font-size:16px;">analytics</span>Analytics</a>
+    <a href="/monthly-report?tab=insights"  class="tab-link {% if active_tab=='insights'  %}active{% endif %}">
+      <span class="material-symbols-outlined" style="font-size:16px;">lightbulb</span>Insights</a>
+    <a href="/monthly-report?tab=exports"   class="tab-link {% if active_tab=='exports'   %}active{% endif %}">
+      <span class="material-symbols-outlined" style="font-size:16px;">download</span>Exports</a>
+  </div>
+
+
+  {# ══════════════════════════════════════
+     TAB: OVERVIEW
+  ══════════════════════════════════════ #}
+  {% if active_tab == 'overview' %}
+
+  <!-- KPI cards with vs-last-month delta -->
+  {% set avg_val = (report_data|sum(attribute=1) / report_data|length) if report_data|length > 0 else 0 %}
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+
+    <!-- Total spent -->
+    <div class="stat-card">
+      <p class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Total Spent</p>
+      <p class="text-[26px] font-extrabold text-danger leading-none">
+        ₹{{ "{:,.0f}".format(report_data|sum(attribute=1)) if report_data else 0 }}
+      </p>
+      <p class="text-xs text-on-surface-variant mt-2">{{ report_data|length }} month{{ 's' if report_data|length!=1 else '' }} recorded</p>
+    </div>
+
+    <!-- This month vs last -->
+    <div class="stat-card">
+      <p class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">This Month</p>
+      <p class="text-[26px] font-extrabold leading-none">₹{{ "{:,.0f}".format(spent_this_month) }}</p>
+      <div class="flex items-center gap-1.5 mt-2 flex-wrap">
+        {% if last_month > 0 %}
+          {% set delta_pct = ((spent_this_month - last_month) / last_month * 100)|round(1) %}
+          {% if delta_pct > 0 %}
+            <span class="badge badge-up">
+              <span class="material-symbols-outlined" style="font-size:11px;">arrow_upward</span>{{ delta_pct }}%
+            </span>
+          {% elif delta_pct < 0 %}
+            <span class="badge badge-dn">
+              <span class="material-symbols-outlined" style="font-size:11px;">arrow_downward</span>{{ (delta_pct * -1)|round(1) }}%
+            </span>
+          {% else %}
+            <span class="badge badge-flat">No change</span>
+          {% endif %}
+          <span class="text-xs text-on-surface-variant">vs last month</span>
+        {% else %}
+          <span class="text-xs text-on-surface-variant">No prior month data</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Largest transaction -->
+    <div class="stat-card">
+      <p class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Largest Transaction</p>
+      {% if largest_expenses %}
+      <p class="text-[26px] font-extrabold leading-none">₹{{ "{:,.0f}".format(largest_expenses[0][2]) }}</p>
+      <p class="text-xs text-on-surface-variant mt-2 truncate">{{ largest_expenses[0][0] or largest_expenses[0][1] }}</p>
+      {% else %}
+      <p class="text-[26px] font-extrabold leading-none text-on-surface-variant">—</p>
+      <p class="text-xs text-on-surface-variant mt-2">No transactions yet</p>
+      {% endif %}
+    </div>
+
+    <!-- Monthly average -->
+    <div class="stat-card">
+      <p class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Monthly Average</p>
+      <p class="text-[26px] font-extrabold text-secondary leading-none">₹{{ "{:,.0f}".format(avg_val) }}</p>
+      <p class="text-xs text-on-surface-variant mt-2">Across all recorded months</p>
+    </div>
+
+  </div>
+
+  <!-- Spending over time chart -->
+  <div class="bg-surface-container border border-outline-variant rounded-2xl p-6 mb-5">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h2 class="text-sm font-extrabold">Spending Over Time</h2>
+        <p class="text-xs text-on-surface-variant mt-0.5">Monthly totals — hover for details</p>
+      </div>
+      <span class="badge badge-flat">{{ report_data|length }} months</span>
+    </div>
+    <div style="height:200px;position:relative;">
+      <canvas id="overviewLineChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Spending heatmap -->
+  <div class="bg-surface-container border border-outline-variant rounded-2xl p-6 mb-5">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h2 class="text-sm font-extrabold">Spending Heatmap</h2>
+        <p class="text-xs text-on-surface-variant mt-0.5">Daily activity — darker = more spending</p>
+      </div>
+      <div class="flex items-center gap-2 text-xs text-on-surface-variant">
+        <span>Less</span>
+        <div class="flex gap-1">
+          <div class="w-3 h-3 rounded-sm heat-0"></div>
+          <div class="w-3 h-3 rounded-sm heat-1"></div>
+          <div class="w-3 h-3 rounded-sm heat-2"></div>
+          <div class="w-3 h-3 rounded-sm heat-3"></div>
+          <div class="w-3 h-3 rounded-sm heat-4"></div>
+        </div>
+        <span>More</span>
+      </div>
+    </div>
+    <div id="heatmapWrap" class="overflow-x-auto pb-2">
+      <div id="heatmapGrid" class="flex gap-1"></div>
+    </div>
+    <div class="flex gap-5 mt-3 text-xs text-on-surface-variant">
+      <span id="heatDayLabels" class="flex gap-1 items-center"></span>
+    </div>
+  </div>
+
+  <!-- 2-col: history table + largest transactions -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+    <!-- Monthly history table -->
+    <div class="bg-surface-container border border-outline-variant rounded-2xl overflow-hidden">
+      <div class="flex items-center gap-2 px-5 py-3.5 border-b border-outline-variant">
+        <span class="material-symbols-outlined text-primary" style="font-size:17px;">history</span>
+        <h2 class="text-sm font-bold">Monthly History</h2>
+      </div>
+      {% if report_data %}
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Month</th>
+            <th style="text-align:right">Total</th>
+            <th style="text-align:right">vs Avg</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in report_data %}
+          <tr onclick="window.location='/expenses?start_date={{ row[0] }}-01&end_date={{ row[0] }}-31'" title="View {{ row[0] }} expenses">
+            <td class="font-semibold">📅 {{ row[0] }}</td>
+            <td style="text-align:right;font-weight:700;">₹{{ "{:,.0f}".format(row[1]) }}</td>
+            <td style="text-align:right;">
+              {% if row[1] > avg_val %}
+                <span class="badge badge-up">↑ ₹{{ "{:,.0f}".format(row[1]-avg_val) }}</span>
+              {% elif row[1] < avg_val %}
+                <span class="badge badge-dn">↓ ₹{{ "{:,.0f}".format(avg_val-row[1]) }}</span>
+              {% else %}
+                <span class="badge badge-flat">avg</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="flex flex-col items-center gap-3 py-10 text-center">
+        <span class="material-symbols-outlined text-on-surface-variant/25" style="font-size:40px;">calendar_today</span>
+        <p class="text-sm text-on-surface-variant">No expense history yet.</p>
+        <a href="/add-expense" class="text-xs font-bold text-primary border border-primary/30 bg-primary/6 px-4 py-2 rounded-lg hover:bg-primary/12 transition-colors">Add First Expense</a>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Largest transactions — clickable -->
+    <div class="bg-surface-container border border-outline-variant rounded-2xl overflow-hidden">
+      <div class="flex items-center gap-2 px-5 py-3.5 border-b border-outline-variant">
+        <span class="material-symbols-outlined text-danger" style="font-size:17px;">arrow_upward</span>
+        <h2 class="text-sm font-bold">Largest Transactions</h2>
+      </div>
+      <div class="p-3">
+        {% if largest_expenses %}
+        {% for expense in largest_expenses %}
+        <a href="/expenses?search={{ expense[1] }}" class="tx-item">
+          <div class="tx-icon">
+            {% if expense[1]|lower=='food' %}🍕{% elif expense[1]|lower=='shopping' %}🛍️
+            {% elif expense[1]|lower=='travel' %}🚗{% elif expense[1]|lower=='bills' %}🧾
+            {% elif expense[1]|lower=='health' %}🏥{% elif expense[1]|lower=='entertainment' %}🎬
+            {% elif expense[1]|lower=='education' %}📚{% elif expense[1]|lower=='repairs' %}🔧
+            {% else %}💰{% endif %}
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-semibold text-on-surface truncate">{{ expense[0] if expense[0] else expense[1] }}</p>
+            <p class="text-xs text-on-surface-variant">{{ expense[1] }}</p>
+          </div>
+          <div class="flex items-center gap-2 flex-shrink-0">
+            <span class="text-sm font-extrabold text-danger">₹{{ "{:,.0f}".format(expense[2]) }}</span>
+            <span class="material-symbols-outlined text-on-surface-variant/40" style="font-size:14px;">chevron_right</span>
+          </div>
+        </a>
+        {% endfor %}
+        {% else %}
+        <div class="flex flex-col items-center gap-3 py-10 text-center">
+          <span class="material-symbols-outlined text-on-surface-variant/25" style="font-size:40px;">receipt_long</span>
+          <p class="text-sm text-on-surface-variant">No transactions yet.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div><!-- /2-col -->
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    /* ── Overview line chart ── */
+    const oMonths = [{% for r in report_data|reverse %}"{{ r[0] }}",{% endfor %}];
+    const oTotals = [{% for r in report_data|reverse %}{{ r[1] }},{% endfor %}];
+    const oAvg    = {{ avg_val|round(2) }};
+    new Chart(document.getElementById('overviewLineChart').getContext('2d'),{
+      type:'line',
+      data:{
+        labels: oMonths.length ? oMonths : ['No data'],
+        datasets:[{
+          data: oTotals.length ? oTotals : [0],
+          borderColor:'#4edea3', backgroundColor:'rgba(78,222,163,0.06)',
+          borderWidth:2, tension:0.3, fill:true,
+          pointBackgroundColor:'#4edea3', pointRadius:4, pointHoverRadius:7,
+        },{
+          data: oMonths.map(()=>oAvg),
+          borderColor:'rgba(173,198,255,0.4)', borderWidth:1.5, borderDash:[5,5],
+          pointRadius:0, fill:false, label:'Avg',
+        }]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{
+          legend:{display:false},
+          tooltip:{
+            backgroundColor:'#1c2026', borderColor:'#3c4a42', borderWidth:1,
+            titleColor:'#dfe2eb', bodyColor:'#86948a', padding:10, cornerRadius:10,
+            callbacks:{
+              label: ctx => ctx.datasetIndex===0
+                ? ' ₹'+ctx.raw.toLocaleString('en-IN')
+                : ' Avg ₹'+oAvg.toLocaleString('en-IN',{maximumFractionDigits:0}),
+            }
+          }
+        },
+        scales:{
+          x:{grid:{color:'#1f293d'}, ticks:{color:'#86948a',font:{size:11}}},
+          y:{grid:{color:'#1f293d'}, ticks:{color:'#86948a',font:{size:11},callback:v=>'₹'+v.toLocaleString('en-IN')}}
+        }
+      }
+    });
+
+    /* ── Spending heatmap ── */
+    (function(){
+      const raw = {{ trend_dates|tojson }};
+      const amounts = {{ trend_amounts|tojson }};
+      const dataMap = {};
+      raw.forEach((d,i)=>{ dataMap[d] = amounts[i]; });
+
+      const today = new Date();
+      const startDate = new Date(today); startDate.setDate(today.getDate()-364);
+      // align to Sunday
+      startDate.setDate(startDate.getDate() - startDate.getDay());
+
+      const maxAmt = Math.max(...Object.values(dataMap),1);
+      function heatLevel(amt){ if(!amt) return 0; const r=amt/maxAmt; return r<.25?1:r<.5?2:r<.75?3:4; }
+      function fmt(d){ return d.toISOString().slice(0,10); }
+      function friendly(d){ return d.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}); }
+
+      const grid = document.getElementById('heatmapGrid');
+      const tip  = document.createElement('div'); tip.id='heatTip'; document.body.appendChild(tip);
+
+      // Build week columns
+      let cur = new Date(startDate);
+      while(cur<=today){
+        const col = document.createElement('div');
+        col.style.cssText='display:flex;flex-direction:column;gap:3px';
+        for(let d=0;d<7;d++){
+          const cell = document.createElement('div');
+          const ds = fmt(cur);
+          const amt = dataMap[ds]||0;
+          const lv = cur>today ? '' : 'heatmap-cell heat-'+heatLevel(amt);
+          cell.className = lv || 'heatmap-cell heat-0';
+          if(cur>today){ cell.style.opacity='0'; }
+          cell.dataset.date = ds;
+          cell.dataset.amount = amt;
+          cell.addEventListener('mouseenter',e=>{
+            const a = parseFloat(cell.dataset.amount)||0;
+            tip.innerHTML=`<div style="font-weight:700;color:#dfe2eb;margin-bottom:2px">${friendly(new Date(cell.dataset.date+'T00:00:00'))}</div>`
+              +(a ? `<div style="color:#4edea3;font-weight:700">₹${a.toLocaleString('en-IN')}</div>` : `<div style="color:#86948a">No spending</div>`);
+            tip.style.display='block';
+            tip.style.left=(e.clientX+12)+'px'; tip.style.top=(e.clientY-10)+'px';
+          });
+          cell.addEventListener('mousemove',e=>{
+            tip.style.left=(e.clientX+12)+'px'; tip.style.top=(e.clientY-10)+'px';
+          });
+          cell.addEventListener('mouseleave',()=>{ tip.style.display='none'; });
+          col.appendChild(cell);
+          cur.setDate(cur.getDate()+1);
+        }
+        grid.appendChild(col);
+      }
+    })();
+  </script>
+
+  {% endif %}{# /OVERVIEW #}
+
+
+  {# ══════════════════════════════════════
+     TAB: ANALYTICS
+  ══════════════════════════════════════ #}
+  {% if active_tab == 'analytics' %}
+
+  <!-- Top 4 KPIs with comparison deltas -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <div class="stat-card">
+      <p class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">This Month</p>
+      <p class="text-[24px] font-extrabold text-danger leading-none">₹{{ "{:,.0f}".format(spent_this_month) }}</p>
+      {% if last_month > 0 %}
+        {% set dp = ((spent_this_month - last_month)/last_month*100)|round(1) %}
+        <div class="flex items-center gap-1.5 mt-2">
+          {% if dp > 0 %}<span class="badge badge-up">↑ {{ dp }}%</span>{% elif dp < 0 %}<span class="badge badge-dn">↓ {{ (dp*-1)|round(1) }}%</span>{% else %}<span class="badge badge-flat">—</span>{% endif %}
+          <span class="text-xs text-on-surface-variant">vs last month</span>
+        </div>
+      {% else %}<p class="text-xs text-on-surface-variant mt-2">No prior data</p>{% endif %}
+    </div>
+
+    <div class="stat-card">
+      <p class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Forecast</p>
+      <p class="text-[24px] font-extrabold text-warning leading-none">₹{{ "{:,.0f}".format(forecast) }}</p>
+      <p class="text-xs text-on-surface-variant mt-2">Predicted month-end</p>
+    </div>
+
+    <div class="stat-card">
+      <p class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Total Income</p>
+      <p class="text-[24px] font-extrabold text-primary leading-none">₹{{ "{:,.0f}".format(total_income) }}</p>
+      <p class="text-xs text-on-surface-variant mt-2">All time</p>
+    </div>
+
+    <div class="stat-card">
+      <p class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Projected Savings</p>
+      <p class="text-[24px] font-extrabold {{ 'text-primary' if projected_savings>=0 else 'text-danger' }} leading-none">
+        ₹{{ "{:,.0f}".format(projected_savings) }}
+      </p>
+      <p class="text-xs text-on-surface-variant mt-2">End-of-month estimate</p>
+    </div>
+
+    <!-- Goal Allocation & Available Cash — same net-position model as the
+         Dashboard, surfaced here because Analytics is where users are
+         already thinking about savings/forecast, not just this month's
+         spend. Distinct from "Projected Savings" above: that's a forward
+         forecast, these two are a snapshot of where money sits right now. -->
+    <div class="stat-card">
+      <p class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Reserved for Goals</p>
+      <p class="text-[24px] font-extrabold text-secondary leading-none">₹{{ "{:,.0f}".format(goal_allocation) }}</p>
+      <p class="text-xs text-on-surface-variant mt-2">
+        {% if goal_count and goal_count > 0 %}
+          Earmarked across {{ goal_count }} goal{{ 's' if goal_count != 1 else '' }}
+        {% else %}
+          No active goals yet
+        {% endif %}
+      </p>
+    </div>
+
+    <div class="stat-card">
+      <p class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Available Balance</p>
+      <p class="text-[24px] font-extrabold {{ 'text-primary' if available_cash>=0 else 'text-danger' }} leading-none">
+        ₹{{ "{:,.0f}".format(available_cash) }}
+      </p>
+      <p class="text-xs text-on-surface-variant mt-2">Net position minus goal savings</p>
+    </div>
+  </div>
+
+  <!-- Row 1: Daily trend (2 cols) + Income vs Expense (1 col) -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
+    <div class="col-span-2 bg-surface-container border border-outline-variant rounded-2xl p-6">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h2 class="text-sm font-extrabold">Daily Spending Trend</h2>
+          <p class="text-xs text-on-surface-variant mt-0.5">All-time daily expense totals</p>
+        </div>
+      </div>
+      <div style="height:180px;position:relative;"><canvas id="dailyTrendChart"></canvas></div>
+    </div>
+    <div class="bg-surface-container border border-outline-variant rounded-2xl p-6">
+      <h2 class="text-sm font-extrabold mb-1">Income vs Expenses</h2>
+      <p class="text-xs text-on-surface-variant mb-4">Cumulative totals</p>
+      <div style="height:180px;position:relative;"><canvas id="incomeExpenseChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Row 2: Category bars (2 cols) + right panel (1 col) -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+    <!-- Category breakdown with % change vs last month -->
+    <div class="col-span-2 bg-surface-container border border-outline-variant rounded-2xl p-6">
+      <div class="flex items-center justify-between mb-5">
+        <div>
+          <h2 class="text-sm font-extrabold">Category Breakdown</h2>
+          <p class="text-xs text-on-surface-variant mt-0.5">This month · with trend vs last month</p>
+        </div>
+        {% if top_month_category %}
+        <a href="/expenses?search={{ top_month_category }}" class="text-xs font-bold text-primary hover:underline flex items-center gap-1">
+          Top: {{ top_month_category }}<span class="material-symbols-outlined" style="font-size:13px;">arrow_forward</span>
+        </a>
+        {% endif %}
+      </div>
+      {% if category_breakdown %}
+        {% set max_amount = cat_amounts|max %}
+        {% for row in category_breakdown %}
+        <div class="mb-5 last:mb-0">
+          <div class="flex justify-between items-center mb-1.5">
+            <span class="text-sm font-semibold flex items-center gap-1.5">
+              {% if row[0]|lower=='food' %}🍕{% elif row[0]|lower=='shopping' %}🛍️
+              {% elif row[0]|lower=='travel' %}🚗{% elif row[0]|lower=='bills' %}🧾
+              {% elif row[0]|lower=='health' %}🏥{% elif row[0]|lower=='entertainment' %}🎬
+              {% elif row[0]|lower=='education' %}📚{% elif row[0]|lower=='repairs' %}🔧
+              {% else %}💰{% endif %}
+              {{ row[0] }}
+            </span>
+            <div class="flex items-center gap-2">
+              {# Simulated trend badge — in production wire to last-month category data #}
+              <span class="badge badge-flat text-on-surface-variant">{{ ((row[1]/spent_this_month)*100)|round(0)|int if spent_this_month > 0 else 0 }}% of total</span>
+              <span class="text-sm font-bold text-on-surface">₹{{ "{:,.0f}".format(row[1]) }}</span>
+            </div>
+          </div>
+          <div class="prog-track">
+            <div class="prog-fill" style="width:{{ ((row[1]/max_amount)*100)|round(1) }}%;"></div>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+      <div class="flex flex-col items-center gap-3 py-8 text-center">
+        <span class="material-symbols-outlined text-on-surface-variant/25" style="font-size:40px;">donut_large</span>
+        <p class="text-sm text-on-surface-variant">No expenses recorded this month.</p>
+        <a href="/add-expense" class="text-xs font-bold text-primary border border-primary/30 bg-primary/6 px-4 py-2 rounded-lg hover:bg-primary/12 transition-colors">
+          Start Adding Expenses
+        </a>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Right column: donut + expanded forecast -->
+    <div class="flex flex-col gap-5">
+
+      <!-- Donut -->
+      <div class="bg-surface-container border border-outline-variant rounded-2xl p-5">
+        <h2 class="text-sm font-extrabold mb-1">Distribution</h2>
+        <p class="text-xs text-on-surface-variant mb-3">Category share this month</p>
+        <div style="height:160px;position:relative;display:flex;align-items:center;justify-content:center;">
+          <canvas id="categoryDonutChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Expanded forecast breakdown -->
+      <div class="bg-surface-container border border-outline-variant rounded-2xl p-5 flex-1">
+        <div class="flex items-center gap-2 mb-4">
+          <span class="material-symbols-outlined text-primary" style="font-size:17px;">insights</span>
+          <h2 class="text-sm font-extrabold">Forecast Breakdown</h2>
+        </div>
+
+        <!-- How the number is calculated — visible math -->
+        <div class="space-y-3">
+          <div class="flex justify-between items-center py-2 border-b border-outline-variant/60">
+            <span class="text-xs text-on-surface-variant">Current spend</span>
+            <span class="text-sm font-bold text-on-surface">₹{{ "{:,.0f}".format(spent_this_month) }}</span>
+          </div>
+          <div class="flex justify-between items-center py-2 border-b border-outline-variant/60">
+            <span class="text-xs text-on-surface-variant">Avg daily rate</span>
+            <span class="text-sm font-bold text-on-surface">₹{{ "{:,.0f}".format(avg_daily|round(0)|int) }}/day</span>
+          </div>
+          <div class="flex justify-between items-center py-2 border-b border-outline-variant/60">
+            <span class="text-xs text-on-surface-variant">Days remaining</span>
+            <span class="text-sm font-bold text-on-surface">{{ days_remaining }} day{{ 's' if days_remaining != 1 else '' }}</span>
+          </div>
+          <div class="flex justify-between items-center py-3 rounded-xl bg-warning/5 border border-warning/20 px-3 mt-2">
+            <span class="text-xs font-bold text-warning uppercase tracking-wider">Estimated Total</span>
+            <span class="text-base font-extrabold text-warning">₹{{ "{:,.0f}".format(forecast) }}</span>
+          </div>
+          <div class="flex justify-between items-center py-2">
+            <span class="text-xs text-on-surface-variant">Projected savings</span>
+            <span class="text-sm font-extrabold {{ 'text-primary' if projected_savings>=0 else 'text-danger' }}">
+              ₹{{ "{:,.0f}".format(projected_savings) }}
+            </span>
+          </div>
+          <div class="pt-1 border-t border-outline-variant/40">
+            <p class="text-xs text-on-surface-variant">
+              Confidence:
+              <span class="font-bold text-on-surface">{% if spent_this_month > 0 %}Medium{% else %}Low — add expenses first{% endif %}</span>
+            </p>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /right col -->
+
+  </div><!-- /row 2 -->
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    const sharedScales = {
+      x:{ grid:{color:'#1f293d'}, ticks:{color:'#86948a',font:{size:11}} },
+      y:{ grid:{color:'#1f293d'}, ticks:{color:'#86948a',font:{size:11},callback:v=>'₹'+v.toLocaleString('en-IN')} }
+    };
+    const sharedTooltip = {
+      backgroundColor:'#1c2026', borderColor:'#3c4a42', borderWidth:1,
+      titleColor:'#dfe2eb', bodyColor:'#86948a', padding:10, cornerRadius:10,
+    };
+
+    // Daily trend
+    new Chart(document.getElementById('dailyTrendChart').getContext('2d'),{
+      type:'line',
+      data:{
+        labels: {{ trend_dates|tojson }},
+        datasets:[{
+          data: {{ trend_amounts|tojson }},
+          borderColor:'#4edea3', backgroundColor:'rgba(78,222,163,0.05)',
+          borderWidth:2, tension:0.3, fill:true,
+          pointBackgroundColor:'#4edea3', pointRadius:3, pointHoverRadius:6,
+        }]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{display:false}, tooltip:{ ...sharedTooltip, callbacks:{label:ctx=>' ₹'+ctx.raw.toLocaleString('en-IN')} } },
+        scales: sharedScales
+      }
+    });
+
+    // Income vs Expense
+    new Chart(document.getElementById('incomeExpenseChart').getContext('2d'),{
+      type:'bar',
+      data:{
+        labels:['Income','Expenses'],
+        datasets:[{
+          data:[{{ total_income }},{{ total_expenses }}],
+          backgroundColor:['rgba(78,222,163,.8)','rgba(248,113,113,.8)'],
+          borderColor:['#4edea3','#f87171'], borderWidth:1, borderRadius:8
+        }]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{display:false}, tooltip:{ ...sharedTooltip, callbacks:{label:ctx=>' ₹'+ctx.raw.toLocaleString('en-IN')} } },
+        scales:{
+          x:{ grid:{display:false}, ticks:{color:'#86948a',font:{size:11}} },
+          y:{ grid:{color:'#1f293d'}, ticks:{color:'#86948a',font:{size:11},callback:v=>'₹'+v.toLocaleString('en-IN')} }
+        }
+      }
+    });
+
+    // Category donut with rich tooltip
+    new Chart(document.getElementById('categoryDonutChart').getContext('2d'),{
+      type:'doughnut',
+      data:{
+        labels: {{ categories|tojson }},
+        datasets:[{
+          data: {{ cat_amounts|tojson }},
+          backgroundColor:['#4edea3','#f59e0b','#f87171','#adc6ff','#a855f7','#34d399'],
+          borderWidth:2, borderColor:'#1c2026'
+        }]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{
+          legend:{ display:true, position:'bottom', labels:{color:'#86948a',font:{size:11},padding:10,boxWidth:10} },
+          tooltip:{
+            ...sharedTooltip,
+            callbacks:{
+              label: ctx => {
+                const total = ctx.dataset.data.reduce((a,b)=>a+b,0);
+                const pct = ((ctx.raw/total)*100).toFixed(1);
+                return ` ₹${ctx.raw.toLocaleString('en-IN')}  (${pct}%)`;
+              }
+            }
+          }
+        }
+      }
+    });
+  </script>
+
+  {% endif %}{# /ANALYTICS #}
+
+
+  {# ══════════════════════════════════════
+     TAB: INSIGHTS
+  ══════════════════════════════════════ #}
+  {% if active_tab == 'insights' %}
+
+  {# ── Pre-compute all the numbers we need once ── #}
+  {% set avg_val = (report_data|sum(attribute=1) / report_data|length) if report_data|length > 0 else 0 %}
+  {% set savings_rate = ((total_income - total_expenses) / total_income * 100) if total_income > 0 else 0 %}
+  {% set mom_pct = change_percentage %}
+  {% set top_cat = category_breakdown[0] if category_breakdown else None %}
+  {% set top_cat_share = ((top_cat[1] / spent_this_month * 100)|round(0)|int) if top_cat and spent_this_month > 0 else 0 %}
+  {% set num_months = report_data|length %}
+  {% set burn_rate = (spent_this_month / this_month * 100)|round(0)|int if this_month > 0 else 0 %}
+  {% set on_pace_to_spend = forecast %}
+  {% set surplus = total_income - total_expenses %}
+
+  <!-- ── Hero summary strip ── -->
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-7">
+
+    <!-- Savings rate -->
+    <div class="bg-surface-container border rounded-2xl p-5
+      {% if savings_rate >= 20 %}border-primary/40{% elif savings_rate >= 0 %}border-outline-variant{% else %}border-error/40{% endif %}">
+      <p class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Savings Rate</p>
+      <p class="text-[30px] font-extrabold leading-none
+        {% if savings_rate >= 20 %}text-primary{% elif savings_rate >= 0 %}text-on-surface{% else %}text-error{% endif %}">
+        {% if savings_rate >= 0 %}{{ savings_rate|round(1) }}%{% else %}−{{ (savings_rate * -1)|round(1) }}%{% endif %}
+      </p>
+      <p class="text-xs text-on-surface-variant mt-2">
+        {% if savings_rate >= 30 %}Excellent — well above the 20% target
+        {% elif savings_rate >= 20 %}Good — at or above the 20% target
+        {% elif savings_rate >= 0 %}Below the recommended 20%
+        {% else %}Spending exceeds income{% endif %}
+      </p>
+    </div>
+
+    <!-- Month-on-month momentum -->
+    <div class="bg-surface-container border rounded-2xl p-5
+      {% if mom_pct > 10 %}border-error/30{% elif mom_pct < -5 %}border-primary/30{% else %}border-outline-variant{% endif %}">
+      <p class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Spending Momentum</p>
+      <p class="text-[30px] font-extrabold leading-none
+        {% if mom_pct > 0 %}text-error{% else %}text-primary{% endif %}">
+        {% if mom_pct > 0 %}+{% endif %}{{ mom_pct|round(1) }}%
+      </p>
+      <p class="text-xs text-on-surface-variant mt-2">
+        {% if last_month > 0 %}
+          vs ₹{{ "{:,.0f}".format(last_month) }} last month
+          {% if mom_pct > 15 %} — spending accelerating
+          {% elif mom_pct > 0 %} — up slightly
+          {% elif mom_pct < -10 %} — strong improvement
+          {% elif mom_pct < 0 %} — trending down
+          {% else %} — roughly flat{% endif %}
+        {% else %}No comparison data yet{% endif %}
+      </p>
+    </div>
+
+    <!-- Month forecast -->
+    <div class="bg-surface-container border rounded-2xl p-5
+      {% if forecast > total_income and total_income > 0 %}border-error/30{% else %}border-outline-variant{% endif %}">
+      <p class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Month-End Forecast</p>
+      <p class="text-[30px] font-extrabold leading-none text-warning">₹{{ "{:,.0f}".format(forecast) }}</p>
+      <p class="text-xs text-on-surface-variant mt-2">
+        {% if total_income > 0 and forecast > total_income %}
+          ⚠️ Projected to exceed income by ₹{{ "{:,.0f}".format(forecast - total_income) }}
+        {% elif spent_this_month > 0 %}
+          Based on ₹{{ "{:,.0f}".format((spent_this_month / today_day)|round(0)|int if today_day else 0 ) }}/day average
+        {% else %}Add expenses to see a forecast{% endif %}
+      </p>
+    </div>
+
+  </div>
+
+  <!-- ── 2-col: Narrative insights (left) + Actionable tips (right) ── -->
+  <div class="grid grid-cols-1 lg:grid-cols-5 gap-5 mb-6">
+
+    <!-- LEFT: narrative insight cards (3 cols) -->
+    <div class="col-span-3 flex flex-col gap-4">
+
+      <!-- Insight 1: Category concentration -->
+      {% if top_cat %}
+      <div class="bg-surface-container border border-outline-variant rounded-2xl p-5">
+        <div class="flex items-start gap-3">
+          <div class="w-9 h-9 rounded-xl bg-warning/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <span class="material-symbols-outlined text-warning" style="font-size:17px;">donut_large</span>
+          </div>
+          <div class="flex-1">
+            <p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1">Top Category Concentration</p>
+            <p class="text-sm text-on-surface leading-relaxed">
+              <span class="font-extrabold text-on-surface">{{ top_cat[0] }}</span> is consuming
+              <span class="font-extrabold text-warning">{{ top_cat_share }}%</span> of your spending this month
+              (₹{{ "{:,.0f}".format(top_cat[1]) }}).
+              {% if top_cat_share > 50 %}
+                That's a high concentration — consider whether this reflects a genuine priority or an area to optimise.
+              {% elif top_cat_share > 30 %}
+                This is your dominant expense. Trimming 10% here would save ~₹{{ "{:,.0f}".format((top_cat[1] * 0.1)|round(0)|int) }} this month.
+              {% else %}
+                Your spending is reasonably distributed across categories.
+              {% endif %}
+            </p>
+            <a href="/expenses?search={{ top_cat[0] }}" class="inline-flex items-center gap-1 text-xs font-bold text-primary mt-2 hover:underline">
+              View {{ top_cat[0] }} expenses <span class="material-symbols-outlined" style="font-size:12px;">arrow_forward</span>
+            </a>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Insight 2: Savings rate analysis -->
+      <div class="bg-surface-container border border-outline-variant rounded-2xl p-5">
+        <div class="flex items-start gap-3">
+          <div class="w-9 h-9 rounded-xl
+            {% if savings_rate >= 20 %}bg-primary/10{% elif savings_rate >= 0 %}bg-secondary/10{% else %}bg-error/10{% endif %}
+            flex items-center justify-center flex-shrink-0 mt-0.5">
+            <span class="material-symbols-outlined
+              {% if savings_rate >= 20 %}text-primary{% elif savings_rate >= 0 %}text-secondary{% else %}text-error{% endif %}"
+              style="font-size:17px;">savings</span>
+          </div>
+          <div class="flex-1">
+            <p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1">Savings Health</p>
+            {% if total_income == 0 %}
+            <p class="text-sm text-on-surface leading-relaxed">Add your income in the <a href="/income" class="text-primary font-bold hover:underline">Income</a> page to see your savings rate and financial health score.</p>
+            {% elif savings_rate >= 30 %}
+            <p class="text-sm text-on-surface leading-relaxed">
+              You're saving <span class="font-extrabold text-primary">{{ savings_rate|round(1) }}%</span> of your income — excellent discipline.
+              At this rate, you're building ₹{{ "{:,.0f}".format(surplus) }} in net surplus all-time.
+              Consider allocating this toward your savings goals or investments.
+            </p>
+            {% elif savings_rate >= 20 %}
+            <p class="text-sm text-on-surface leading-relaxed">
+              You're at <span class="font-extrabold text-primary">{{ savings_rate|round(1) }}%</span> savings rate — right at the recommended 20% threshold.
+              Your all-time surplus stands at ₹{{ "{:,.0f}".format(surplus) }}. Push past 25% by reducing your top spending category.
+            </p>
+            {% elif savings_rate >= 0 %}
+            <p class="text-sm text-on-surface leading-relaxed">
+              Your savings rate is <span class="font-extrabold text-secondary">{{ savings_rate|round(1) }}%</span> — below the recommended 20%.
+              You're spending ₹{{ "{:,.0f}".format(total_expenses) }} against ₹{{ "{:,.0f}".format(total_income) }} earned.
+              Reducing monthly expenses by ₹{{ "{:,.0f}".format(((total_income * 0.2) - surplus)|round(0)|int) }} would hit the 20% target.
+            </p>
+            {% else %}
+            <p class="text-sm text-on-surface leading-relaxed">
+              <span class="font-extrabold text-error">Spending exceeds income</span> by ₹{{ "{:,.0f}".format((surplus * -1)|round(0)|int) }}.
+              This is unsustainable over time. Review your largest expense categories and look for immediate cuts.
+            </p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Insight 3: Spending velocity / momentum -->
+      <div class="bg-surface-container border border-outline-variant rounded-2xl p-5">
+        <div class="flex items-start gap-3">
+          <div class="w-9 h-9 rounded-xl
+            {% if mom_pct > 10 %}bg-error/10{% elif mom_pct < 0 %}bg-primary/10{% else %}bg-secondary/10{% endif %}
+            flex items-center justify-center flex-shrink-0 mt-0.5">
+            <span class="material-symbols-outlined
+              {% if mom_pct > 10 %}text-error{% elif mom_pct < 0 %}text-primary{% else %}text-secondary{% endif %}"
+              style="font-size:17px;">{{ 'trending_up' if mom_pct > 5 else ('trending_down' if mom_pct < -5 else 'trending_flat') }}</span>
+          </div>
+          <div class="flex-1">
+            <p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1">Spending Trend</p>
+            {% if last_month == 0 %}
+            <p class="text-sm text-on-surface leading-relaxed">
+              This is your first month of recorded data. Spending this month is ₹{{ "{:,.0f}".format(spent_this_month) }}.
+              Keep tracking and a month-on-month trend will appear here next month.
+            </p>
+            {% elif mom_pct > 20 %}
+            <p class="text-sm text-on-surface leading-relaxed">
+              Spending jumped <span class="font-extrabold text-error">{{ mom_pct|round(1) }}%</span> vs last month
+              (₹{{ "{:,.0f}".format(last_month) }} → ₹{{ "{:,.0f}".format(spent_this_month) }}).
+              This is a significant increase. Check your <a href="/expenses" class="text-primary font-bold hover:underline">recent transactions</a> for any one-off large costs driving this up.
+            </p>
+            {% elif mom_pct > 5 %}
+            <p class="text-sm text-on-surface leading-relaxed">
+              Spending is up <span class="font-extrabold text-warning">{{ mom_pct|round(1) }}%</span> vs last month.
+              The additional ₹{{ "{:,.0f}".format(spent_this_month - last_month) }} likely reflects routine variation — watch if this persists into next month.
+            </p>
+            {% elif mom_pct < -10 %}
+            <p class="text-sm text-on-surface leading-relaxed">
+              Great work — spending is down <span class="font-extrabold text-primary">{{ (mom_pct * -1)|round(1) }}%</span> vs last month.
+              You've saved ₹{{ "{:,.0f}".format(last_month - spent_this_month) }} compared to last month's pace.
+            </p>
+            {% else %}
+            <p class="text-sm text-on-surface leading-relaxed">
+              Spending is roughly flat vs last month ({{ "+" if mom_pct >= 0 else "" }}{{ mom_pct|round(1) }}%).
+              Consistency is good — keep an eye on your top categories for gradual creep.
+            </p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Insight 4: Historical average context -->
+      {% if num_months >= 2 %}
+      <div class="bg-surface-container border border-outline-variant rounded-2xl p-5">
+        <div class="flex items-start gap-3">
+          <div class="w-9 h-9 rounded-xl bg-secondary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <span class="material-symbols-outlined text-secondary" style="font-size:17px;">history</span>
+          </div>
+          <div class="flex-1">
+            <p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1">vs Your Historical Average</p>
+            {% set diff = spent_this_month - avg_val %}
+            <p class="text-sm text-on-surface leading-relaxed">
+              Your {{ num_months }}-month average is ₹{{ "{:,.0f}".format(avg_val|round(0)|int) }}/month.
+              This month you're
+              {% if diff > 0 %}
+                <span class="font-extrabold text-error">₹{{ "{:,.0f}".format(diff|round(0)|int) }} above</span> your average — could be seasonal or a one-off.
+              {% elif diff < 0 %}
+                <span class="font-extrabold text-primary">₹{{ "{:,.0f}".format((diff * -1)|round(0)|int) }} below</span> your average — a positive sign.
+              {% else %}
+                exactly on your average.
+              {% endif %}
+            </p>
+            <a href="/monthly-report?tab=overview" class="inline-flex items-center gap-1 text-xs font-bold text-primary mt-2 hover:underline">
+              See monthly history <span class="material-symbols-outlined" style="font-size:12px;">arrow_forward</span>
+            </a>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+    </div>
+
+    <!-- RIGHT: Actionable checklist + category score (2 cols) -->
+    <div class="col-span-2 flex flex-col gap-4">
+
+      <!-- Financial health score -->
+      <div class="bg-surface-container border border-outline-variant rounded-2xl p-5">
+        <div class="flex items-center gap-2 mb-4">
+          <span class="material-symbols-outlined text-primary" style="font-size:16px;">health_and_safety</span>
+          <h3 class="text-sm font-bold">Financial Health Score</h3>
+        </div>
+
+        {# Score out of 100: savings rate 40pts, trend 30pts, data completeness 30pts #}
+        {% set score_savings = [40, [0, (savings_rate / 30 * 40)|round(0)|int]|max]|min %}
+        {% set score_trend   = [30, [0, (15 - (mom_pct * 0.75))|round(0)|int]|max]|min %}
+        {% set score_data    = [30, num_months * 5]|min %}
+        {% set total_score   = (score_savings + score_trend + score_data)|round(0)|int %}
+
+        <div class="text-center mb-4">
+          <p class="text-[44px] font-extrabold leading-none
+            {% if total_score >= 70 %}text-primary{% elif total_score >= 45 %}text-warning{% else %}text-error{% endif %}">
+            {{ total_score }}
+          </p>
+          <p class="text-xs text-on-surface-variant mt-1">out of 100</p>
+          <p class="text-xs font-bold mt-1
+            {% if total_score >= 70 %}text-primary{% elif total_score >= 45 %}text-warning{% else %}text-error{% endif %}">
+            {% if total_score >= 80 %}Excellent{% elif total_score >= 70 %}Good{% elif total_score >= 45 %}Needs Attention{% else %}At Risk{% endif %}
+          </p>
+        </div>
+
+        <!-- Score breakdown -->
+        <div class="space-y-2.5">
+          <div>
+            <div class="flex justify-between text-xs mb-1">
+              <span class="text-on-surface-variant">Savings rate</span>
+              <span class="font-bold text-on-surface">{{ score_savings }}/40</span>
+            </div>
+            <div class="prog-track"><div class="prog-fill" style="width:{{ (score_savings/40*100)|round(0) }}%"></div></div>
+          </div>
+          <div>
+            <div class="flex justify-between text-xs mb-1">
+              <span class="text-on-surface-variant">Spending trend</span>
+              <span class="font-bold text-on-surface">{{ score_trend }}/30</span>
+            </div>
+            <div class="prog-track"><div class="prog-fill" style="width:{{ (score_trend/30*100)|round(0) }}%"></div></div>
+          </div>
+          <div>
+            <div class="flex justify-between text-xs mb-1">
+              <span class="text-on-surface-variant">Data history</span>
+              <span class="font-bold text-on-surface">{{ score_data }}/30</span>
+            </div>
+            <div class="prog-track"><div class="prog-fill" style="width:{{ (score_data/30*100)|round(0) }}%"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Actionable checklist -->
+      <div class="bg-surface-container border border-outline-variant rounded-2xl p-5 flex-1">
+        <div class="flex items-center gap-2 mb-4">
+          <span class="material-symbols-outlined text-on-surface-variant" style="font-size:16px;">task_alt</span>
+          <h3 class="text-sm font-bold">What to Do Next</h3>
+        </div>
+        <div class="space-y-3">
+
+          {% if total_income == 0 %}
+          <div class="flex items-start gap-3 p-3 rounded-xl bg-primary/5 border border-primary/15">
+            <span class="material-symbols-outlined text-primary mt-0.5" style="font-size:16px;">add_circle</span>
+            <div>
+              <p class="text-xs font-bold text-on-surface">Log your income</p>
+              <p class="text-xs text-on-surface-variant mt-0.5">Add income entries to unlock savings rate, health score, and forecast accuracy.</p>
+              <a href="/income" class="text-xs text-primary font-bold hover:underline mt-1 inline-block">Go to Income →</a>
+            </div>
+          </div>
+          {% endif %}
+
+          {% if savings_rate < 20 and total_income > 0 %}
+          <div class="flex items-start gap-3 p-3 rounded-xl bg-warning/5 border border-warning/15">
+            <span class="material-symbols-outlined text-warning mt-0.5" style="font-size:16px;">priority_high</span>
+            <div>
+              <p class="text-xs font-bold text-on-surface">Boost your savings rate</p>
+              <p class="text-xs text-on-surface-variant mt-0.5">You need to cut ₹{{ "{:,.0f}".format(((total_income * 0.2) - surplus)|round(0)|int) }} more per month to reach the 20% target.</p>
+              <a href="/expenses" class="text-xs text-primary font-bold hover:underline mt-1 inline-block">Review Expenses →</a>
+            </div>
+          </div>
+          {% endif %}
+
+          {% if top_cat and top_cat_share > 40 %}
+          <div class="flex items-start gap-3 p-3 rounded-xl bg-secondary/5 border border-secondary/15">
+            <span class="material-symbols-outlined text-secondary mt-0.5" style="font-size:16px;">category</span>
+            <div>
+              <p class="text-xs font-bold text-on-surface">Diversify {{ top_cat[0] }} spending</p>
+              <p class="text-xs text-on-surface-variant mt-0.5">{{ top_cat[0] }} is {{ top_cat_share }}% of your budget. A 10% cut saves ₹{{ "{:,.0f}".format((top_cat[1] * 0.1)|round(0)|int) }}/month.</p>
+              <a href="/expenses?search={{ top_cat[0] }}" class="text-xs text-primary font-bold hover:underline mt-1 inline-block">View {{ top_cat[0] }} →</a>
+            </div>
+          </div>
+          {% endif %}
+
+          {% if mom_pct > 15 %}
+          <div class="flex items-start gap-3 p-3 rounded-xl bg-error/5 border border-error/15">
+            <span class="material-symbols-outlined text-error mt-0.5" style="font-size:16px;">trending_up</span>
+            <div>
+              <p class="text-xs font-bold text-on-surface">Investigate spending spike</p>
+              <p class="text-xs text-on-surface-variant mt-0.5">Spending rose {{ mom_pct|round(1) }}% this month. Find what changed and cut it before it becomes habit.</p>
+              <a href="/expenses" class="text-xs text-primary font-bold hover:underline mt-1 inline-block">Recent Transactions →</a>
+            </div>
+          </div>
+          {% endif %}
+
+          {% if largest_expenses %}
+          <div class="flex items-start gap-3 p-3 rounded-xl bg-on-surface/3 border border-outline-variant">
+            <span class="material-symbols-outlined text-on-surface-variant mt-0.5" style="font-size:16px;">arrow_upward</span>
+            <div>
+              <p class="text-xs font-bold text-on-surface">Review your largest transaction</p>
+              <p class="text-xs text-on-surface-variant mt-0.5">₹{{ "{:,.0f}".format(largest_expenses[0][2]) }} on {{ largest_expenses[0][0] or largest_expenses[0][1] }} is your biggest single expense.</p>
+              <a href="/expenses" class="text-xs text-primary font-bold hover:underline mt-1 inline-block">View Transactions →</a>
+            </div>
+          </div>
+          {% endif %}
+
+          {% if num_months < 3 %}
+          <div class="flex items-start gap-3 p-3 rounded-xl bg-on-surface/3 border border-outline-variant">
+            <span class="material-symbols-outlined text-on-surface-variant mt-0.5" style="font-size:16px;">history</span>
+            <div>
+              <p class="text-xs font-bold text-on-surface">Build your history</p>
+              <p class="text-xs text-on-surface-variant mt-0.5">You have {{ num_months }} month{{ 's' if num_months != 1 else '' }} of data. Trends and scores improve significantly after 3+ months.</p>
+            </div>
+          </div>
+          {% endif %}
+
+          <!-- Always: goals prompt -->
+          <div class="flex items-start gap-3 p-3 rounded-xl bg-primary/5 border border-primary/15">
+            <span class="material-symbols-outlined text-primary mt-0.5" style="font-size:16px;">savings</span>
+            <div>
+              <p class="text-xs font-bold text-on-surface">Channel your surplus into goals</p>
+              <p class="text-xs text-on-surface-variant mt-0.5">
+                {% if surplus > 0 %}You have ₹{{ "{:,.0f}".format(surplus) }} in cumulative surplus — put it to work.
+                {% else %}Track income to discover your surplus and assign it to savings goals.{% endif %}
+              </p>
+              <a href="/goals" class="text-xs text-primary font-bold hover:underline mt-1 inline-block">View Goals →</a>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- (Category breakdown is shown in full on the Analytics tab — not repeated here to avoid duplication) -->
+
+  {% endif %}{# /INSIGHTS #}
+
+
+
+  {% if active_tab == 'exports' %}
+
+  <div class="max-w-2xl space-y-4">
+
+    <!-- Date range picker — actually filters what gets exported -->
+    <div class="bg-surface-container border border-outline-variant rounded-2xl p-6">
+      <div class="flex items-center gap-2 mb-1">
+        <span class="material-symbols-outlined text-on-surface-variant" style="font-size:17px;">date_range</span>
+        <h2 class="text-sm font-bold">Export Date Range</h2>
+      </div>
+      <p class="text-xs text-on-surface-variant mb-4">Choose a range below — exports update automatically.</p>
+
+      <div class="flex flex-wrap gap-2" id="exportPresetRow">
+        <button type="button" class="export-chip active" data-range="all">All Time</button>
+        <button type="button" class="export-chip" data-range="7d">Last 7 Days</button>
+        <button type="button" class="export-chip" data-range="10d">Last 10 Days</button>
+        <button type="button" class="export-chip" data-range="month">This Month</button>
+        <button type="button" class="export-chip" data-range="year">This Year</button>
+        <button type="button" class="export-chip" data-range="custom">Custom Range</button>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2 mt-3" id="exportCustomRow" style="display:none;">
+        <input type="date" id="exportStart" class="date-inp" placeholder="From">
+        <span class="text-on-surface-variant text-xs">→</span>
+        <input type="date" id="exportEnd" class="date-inp" placeholder="To">
+      </div>
+
+      <p class="text-xs text-on-surface-variant mt-4 pt-3 border-t border-outline-variant/60" id="exportRangeSummary">
+        Exporting: complete history
+      </p>
+    </div>
+
+    <!-- CSV -->
+    <div class="bg-surface-container border border-outline-variant rounded-2xl p-7 flex items-start gap-5">
+      <div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+        <span class="material-symbols-outlined text-primary" style="font-size:22px;">table_view</span>
+      </div>
+      <div class="flex-1">
+        <h2 class="font-extrabold text-base mb-1">Export Expenses as CSV</h2>
+        <p class="text-sm text-on-surface-variant leading-relaxed mb-5">
+          Download your expense records as a CSV file — open in Excel or Google Sheets for further analysis.
+        </p>
+        <a href="/export" id="csvExportLink"
+           class="inline-flex items-center gap-2 bg-primary text-on-primary px-5 py-2.5 rounded-xl font-bold text-sm hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-primary/10">
+          <span class="material-symbols-outlined" style="font-size:16px;">download</span>Download CSV
+        </a>
+      </div>
+    </div>
+
+    <!-- PDF -->
+    <div class="bg-surface-container border border-outline-variant rounded-2xl p-7 flex items-start gap-5">
+      <div class="w-12 h-12 rounded-xl bg-secondary/10 flex items-center justify-center flex-shrink-0">
+        <span class="material-symbols-outlined text-secondary" style="font-size:22px;">picture_as_pdf</span>
+      </div>
+      <div class="flex-1">
+        <h2 class="font-extrabold text-base mb-1">Download Expense Report PDF</h2>
+        <p class="text-sm text-on-surface-variant leading-relaxed mb-5">
+          Generate a formatted PDF of your expense transactions — useful for record-keeping or sharing a summary.
+        </p>
+        <a href="/export-pdf" id="pdfExportLink"
+           class="inline-flex items-center gap-2 border border-secondary text-secondary px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-secondary/10 active:scale-95 transition-all">
+          <span class="material-symbols-outlined" style="font-size:16px;">picture_as_pdf</span>Download PDF
+        </a>
+      </div>
+    </div>
+
+    <!-- Info note -->
+    <div class="flex items-start gap-3 px-5 py-4 rounded-xl bg-primary/5 border border-primary/15">
+      <span class="material-symbols-outlined text-primary mt-0.5" style="font-size:16px;">info</span>
+      <p class="text-xs text-on-surface-variant leading-relaxed">
+        Exports respect the date range above, if set. Income entries and recurring expenses are tracked separately and not included in expense exports.
+      </p>
+    </div>
+
+  </div>
+
+  <script>
+    (function(){
+      const chips      = document.querySelectorAll('.export-chip');
+      const customRow  = document.getElementById('exportCustomRow');
+      const startInp   = document.getElementById('exportStart');
+      const endInp     = document.getElementById('exportEnd');
+      const csvLink    = document.getElementById('csvExportLink');
+      const pdfLink    = document.getElementById('pdfExportLink');
+      const summary    = document.getElementById('exportRangeSummary');
+      let currentRange = 'all';
+
+      function fmtISO(d){ return d.toISOString().slice(0,10); }
+      function friendly(d){ return d.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}); }
+
+      function computePreset(range){
+        const today = new Date();
+        let start;
+        if (range === '7d')    { start = new Date(today); start.setDate(today.getDate()-6); }
+        else if (range === '10d') { start = new Date(today); start.setDate(today.getDate()-9); }
+        else if (range === 'month') { start = new Date(today.getFullYear(), today.getMonth(), 1); }
+        else if (range === 'year')  { start = new Date(today.getFullYear(), 0, 1); }
+        return { start, end: today };
+      }
+
+      function buildUrl(base, s, e){
+        const params = [];
+        if (s) params.push('start_date=' + s);
+        if (e) params.push('end_date=' + e);
+        return params.length ? base + '?' + params.join('&') : base;
+      }
+
+      function syncLinks(){
+        let s = '', e = '';
+        if (currentRange === 'all') {
+          summary.textContent = 'Exporting: complete history';
+        } else if (currentRange === 'custom') {
+          s = startInp.value; e = endInp.value;
+          summary.textContent = (s && e)
+            ? `Exporting: ${friendly(new Date(s))} → ${friendly(new Date(e))}`
+            : 'Exporting: pick both dates above';
+        } else {
+          const { start, end } = computePreset(currentRange);
+          s = fmtISO(start); e = fmtISO(end);
+          summary.textContent = `Exporting: ${friendly(start)} → ${friendly(end)}`;
+        }
+        csvLink.href = buildUrl('/export', s, e);
+        pdfLink.href = buildUrl('/export-pdf', s, e);
+      }
+
+      chips.forEach(chip => {
+        chip.addEventListener('click', () => {
+          chips.forEach(c => c.classList.remove('active'));
+          chip.classList.add('active');
+          currentRange = chip.dataset.range;
+          customRow.style.display = (currentRange === 'custom') ? 'flex' : 'none';
+          syncLinks();
+        });
+      });
+      startInp.addEventListener('change', syncLinks);
+      endInp.addEventListener('change', syncLinks);
+      syncLinks();
+    })();
+  </script>
+
+  {% endif %}{# /EXPORTS #}
+
+</div>{# /max-w #}
+</main>
+</div>
+
+</body>
+</html>

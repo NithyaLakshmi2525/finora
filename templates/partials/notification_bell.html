@@ -1,0 +1,222 @@
+<!-- ═══════════════════ NOTIFICATION BELL (shared partial) ═══════════════════ -->
+<!-- Save this file as: templates/partials/notification_bell.html -->
+<!-- Included from templates/partials/sidebar.html so every authenticated page
+     gets identical bell/dropdown behavior from one place. Not meant to be
+     included directly by page templates — include the sidebar instead. -->
+<!-- Backed by /notifications, /notifications/read/<id>, /notifications/read-all,
+     /notifications/<id>/delete, and /notifications/clear in app.py. -->
+
+<style>
+  .bell-btn { position:relative; display:flex; align-items:center; gap:10px; padding:9px 14px; border-radius:10px; color:#bbcabf; text-decoration:none; font-size:14px; font-weight:500; transition:background .15s,color .15s; cursor:pointer; border:none; background:none; width:100%; text-align:left; font-family:inherit; }
+  .bell-btn:hover { background:#1c2026; color:#dfe2eb; }
+  .bell-badge { position:absolute; top:5px; left:24px; min-width:16px; height:16px; padding:0 4px; border-radius:8px; background:#f87171; color:#fff; font-size:10px; font-weight:800; display:flex; align-items:center; justify-content:center; line-height:1; }
+  .bell-badge.hidden { display:none; }
+  .notif-panel { position:absolute; bottom:100%; left:8px; right:8px; margin-bottom:8px; background:#1c2026; border:1px solid #3c4a42; border-radius:14px; box-shadow:0 16px 40px rgba(0,0,0,.55); max-height:420px; overflow:hidden; display:none; flex-direction:column; z-index:2000; }
+  .notif-panel.open { display:flex; }
+  .notif-header { display:flex; align-items:center; justify-content:space-between; padding:10px 10px 10px 14px; border-bottom:1px solid #3c4a42; gap:8px; }
+  .notif-header h4 { font-size:13px; font-weight:800; color:#dfe2eb; margin:0; }
+  .notif-header-actions { display:flex; align-items:center; gap:4px; flex-shrink:0; }
+  /* Compact icon buttons instead of text labels — "Mark all read" + "Clear
+     all" as text didn't reliably fit next to the "Notifications" title in
+     the sidebar's narrow width, causing "Clear all" to run off the edge.
+     Matches the same small rounded-square icon-button language already
+     used for the transaction/settlement kebab menus elsewhere. */
+  .notif-icon-btn { width:26px; height:26px; border-radius:7px; flex-shrink:0; display:flex; align-items:center; justify-content:center; background:transparent; border:none; color:#86948a; cursor:pointer; transition:background .15s, color .15s; }
+  .notif-icon-btn:hover { background:rgba(78,222,163,.12); color:#4edea3; }
+  .notif-icon-btn-danger:hover { background:rgba(248,113,113,.12); color:#f87171; }
+  .notif-list { overflow-y:auto; max-height:340px; }
+  .notif-item-wrap { position:relative; border-bottom:1px solid #262a31; }
+  .notif-item-wrap:last-child { border-bottom:none; }
+  .notif-item { display:flex; gap:10px; padding:11px 34px 11px 14px; text-decoration:none; transition:background .12s; cursor:pointer; }
+  .notif-item:hover { background:#181c22; }
+  .notif-item.unread { background:rgba(78,222,163,.05); }
+  .notif-item .ni-icon { font-size:16px; flex-shrink:0; margin-top:1px; }
+  .notif-item .ni-title { font-size:12.5px; font-weight:700; color:#dfe2eb; line-height:1.3; }
+  .notif-item .ni-msg { font-size:11.5px; color:#86948a; margin-top:2px; line-height:1.35; }
+  .notif-item .ni-time { font-size:10px; color:#5a6660; margin-top:4px; }
+  .notif-empty { padding:32px 16px; text-align:center; color:#86948a; font-size:12.5px; }
+  /* Faint by default rather than fully hidden, so touch devices (no
+     :hover) can still find and tap it — same reasoning as the transaction
+     kebab menus elsewhere in the app. A sibling of the <a>, not nested
+     inside it, since a <button> inside an <a> causes the browser to
+     auto-close the outer link (a real bug hit elsewhere in this app before). */
+  .notif-delete { position:absolute; top:9px; right:8px; width:22px; height:22px; border-radius:6px; display:flex; align-items:center; justify-content:center; background:transparent; border:none; color:#5a6660; cursor:pointer; opacity:.55; transition:opacity .15s, background .15s, color .15s; }
+  .notif-delete:hover { opacity:1; background:rgba(248,113,113,.14); color:#f87171; }
+</style>
+
+<div class="px-2 pb-1" style="position:relative;" id="notifWrap">
+  <button type="button" class="bell-btn" id="bellBtn" onclick="toggleNotifPanel()" aria-haspopup="true" aria-expanded="false" aria-label="Notifications">
+    <span class="material-symbols-outlined" style="font-size:19px;">notifications</span>
+    Notifications
+    <span class="bell-badge hidden" id="bellBadge">0</span>
+  </button>
+  <div class="notif-panel" id="notifPanel" role="menu" aria-label="Notifications">
+    <div class="notif-header">
+      <h4>Notifications</h4>
+      <div class="notif-header-actions">
+        <button type="button" class="notif-icon-btn" onclick="markAllNotifRead()" title="Mark all as read" aria-label="Mark all as read">
+          <span class="material-symbols-outlined" style="font-size:16px;">done_all</span>
+        </button>
+        <button type="button" class="notif-icon-btn notif-icon-btn-danger" onclick="clearAllNotifications()" title="Clear all notifications" aria-label="Clear all notifications">
+          <span class="material-symbols-outlined" style="font-size:16px;">delete_sweep</span>
+        </button>
+      </div>
+    </div>
+    <div class="notif-list" id="notifList">
+      <div class="notif-empty">Loading…</div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* Self-contained on purpose: this helper is scoped to the bell only, so
+   including this partial never depends on (or clobbers) any other
+   escaping helper a page might already define for its own unrelated needs
+   (e.g. balances.html/goal_details.html each define their own escapeHtml
+   for settlement/goal-transaction content). */
+function notifEscapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str == null ? '' : String(str);
+  return div.innerHTML;
+}
+
+/* ── Notification bell logic ──
+   cache: 'no-store' on every request — a browser-cached copy of GET
+   /notifications could otherwise mask a just-completed mark-as-read/mark-
+   all-read, since neither response sets its own Cache-Control headers.
+   credentials: 'same-origin' is the fetch() default already, made explicit
+   here so it can never silently regress if this code is ever copied
+   somewhere with a different default. */
+async function loadNotifications() {
+  try {
+    const res = await fetch('/notifications', { credentials: 'same-origin', cache: 'no-store' });
+    const data = await res.json();
+    const badge = document.getElementById('bellBadge');
+    badge.textContent = data.unread_count > 9 ? '9+' : data.unread_count;
+    badge.classList.toggle('hidden', data.unread_count === 0);
+
+    const list = document.getElementById('notifList');
+    if (!data.items || data.items.length === 0) {
+      list.innerHTML = '<div class="notif-empty">You\'re all caught up 🎉</div>';
+      return;
+    }
+    list.innerHTML = data.items.map(n => `
+      <div class="notif-item-wrap">
+        <a href="${notifEscapeHtml(n.link || '#')}" class="notif-item ${n.is_read ? '' : 'unread'}" data-id="${n.id}" data-link="${notifEscapeHtml(n.link || '')}" onclick="handleNotifClick(event, this)">
+          <span class="ni-icon">${notifEscapeHtml(n.icon)}</span>
+          <div>
+            <div class="ni-title">${notifEscapeHtml(n.title)}</div>
+            ${n.message ? `<div class="ni-msg">${notifEscapeHtml(n.message)}</div>` : ''}
+            <div class="ni-time">${notifEscapeHtml(n.created_at)}</div>
+          </div>
+        </a>
+        <button type="button" class="notif-delete" data-id="${n.id}" onclick="handleDeleteNotif(event, this)" aria-label="Delete notification" title="Delete">
+          <span class="material-symbols-outlined" style="font-size:14px;">close</span>
+        </button>
+      </div>
+    `).join('');
+  } catch (e) {
+    console.error('Failed to load notifications', e);
+  }
+}
+function toggleNotifPanel() {
+  const panel = document.getElementById('notifPanel');
+  const btn = document.getElementById('bellBtn');
+  const isOpen = panel.classList.contains('open');
+  panel.classList.toggle('open', !isOpen);
+  btn.setAttribute('aria-expanded', String(!isOpen));
+  if (!isOpen) loadNotifications();
+}
+function closeNotifPanel() {
+  const panel = document.getElementById('notifPanel');
+  if (panel.classList.contains('open')) {
+    panel.classList.remove('open');
+    document.getElementById('bellBtn').setAttribute('aria-expanded', 'false');
+  }
+}
+/* Values come off data-* attributes rather than being inlined into the
+   onclick string — same reason goal_details.html's transaction menu does
+   this: a link/title containing a quote could otherwise break out of a
+   quoted JS literal embedded in an HTML attribute. */
+function handleNotifClick(event, el) {
+  event.preventDefault();
+  const id = el.dataset.id;
+  const link = el.dataset.link;
+  markNotifRead(id).finally(() => {
+    if (link) window.location.href = link;
+  });
+}
+function markNotifRead(id) {
+  // Was previously a plain <a href> with no preventDefault — the browser
+  // began navigating away immediately on click, and the async mark-read
+  // request frequently never finished before the page unloaded, so the
+  // notification was never actually marked read despite navigation
+  // "working". Now explicitly awaited (see handleNotifClick above) and
+  // response status is checked instead of assumed, so a real backend
+  // failure (e.g. session expired) is surfaced instead of silently
+  // treated as success.
+  return fetch('/notifications/read/' + id, { method: 'POST', credentials: 'same-origin' })
+    .then(res => {
+      if (!res.ok) throw new Error('Failed to mark notification as read (status ' + res.status + ')');
+      return pollUnreadCount();
+    })
+    .catch(err => {
+      console.error('Failed to mark notification as read:', err);
+    });
+}
+function markAllNotifRead() {
+  fetch('/notifications/read-all', { method: 'POST', credentials: 'same-origin' })
+    .then(res => {
+      if (!res.ok) throw new Error('Failed to mark all notifications as read (status ' + res.status + ')');
+      return loadNotifications();
+    })
+    .catch(err => {
+      console.error('Failed to mark all notifications as read:', err);
+    });
+}
+function handleDeleteNotif(event, btn) {
+  // stopPropagation isn't strictly required here (the button is a sibling
+  // of the <a>, not nested inside it, so there's no shared click target to
+  // fight over) but is kept anyway as a defensive habit, matching the
+  // kebab-menu buttons elsewhere in the app.
+  event.preventDefault();
+  event.stopPropagation();
+  const id = btn.dataset.id;
+  fetch('/notifications/' + id + '/delete', { method: 'POST', credentials: 'same-origin' })
+    .then(res => {
+      if (!res.ok) throw new Error('Failed to delete notification (status ' + res.status + ')');
+      return loadNotifications();
+    })
+    .catch(err => {
+      console.error('Failed to delete notification:', err);
+    });
+}
+function clearAllNotifications() {
+  fetch('/notifications/clear', { method: 'POST', credentials: 'same-origin' })
+    .then(res => {
+      if (!res.ok) throw new Error('Failed to clear notifications (status ' + res.status + ')');
+      return loadNotifications();
+    })
+    .catch(err => {
+      console.error('Failed to clear notifications:', err);
+    });
+}
+document.addEventListener('click', (e) => {
+  const wrap = document.getElementById('notifWrap');
+  if (wrap && !wrap.contains(e.target)) closeNotifPanel();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeNotifPanel();
+});
+async function pollUnreadCount() {
+  try {
+    const res = await fetch('/notifications', { credentials: 'same-origin', cache: 'no-store' });
+    const data = await res.json();
+    const badge = document.getElementById('bellBadge');
+    badge.textContent = data.unread_count > 9 ? '9+' : data.unread_count;
+    badge.classList.toggle('hidden', data.unread_count === 0);
+  } catch (e) { /* silent */ }
+}
+pollUnreadCount();
+setInterval(pollUnreadCount, 30000);
+</script>

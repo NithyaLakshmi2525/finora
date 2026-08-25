@@ -1,0 +1,13 @@
+<!-- ═══════════════════ MOBILE TOPBAR (shared partial) ═══════════════════ -->
+<!-- Save this file as: templates/partials/mobile_topbar.html -->
+<!-- Include as the first line inside <main>, before the page's content wrapper.
+     Hidden at lg and up — the full sidebar takes over there. -->
+<div class="lg:hidden sticky top-0 z-30 flex items-center gap-3 px-4 py-3 bg-surface-container-low border-b border-outline-variant">
+  <button type="button" onclick="openSidebar()" class="w-9 h-9 flex items-center justify-center rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors" aria-label="Open menu">
+    <span class="material-symbols-outlined" style="font-size:22px;">menu</span>
+  </button>
+  <a href="/" class="flex items-center gap-2">
+    <span class="material-symbols-outlined text-primary" style="font-size:20px;">account_balance_wallet</span>
+    <span class="font-display text-base font-extrabold tracking-tight text-primary">Finora</span>
+  </a>
+</div>

@@ -1,0 +1,1150 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Recurring Expenses | Finora</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/npm/geist@1.3.0/dist/fonts/geist.min.css" rel="stylesheet"/>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          "surface-dim":            "#10141a",
+          "background":             "#10141a",
+          "surface-container-low":  "#181c22",
+          "on-primary":             "#003824",
+          "primary-container":      "#10b981",
+          "surface-container":      "#1c2026",
+          "on-primary-container":   "#00422b",
+          "primary":                "#4edea3",
+          "on-surface":             "#dfe2eb",
+          "on-surface-variant":     "#bbcabf",
+          "surface-variant":        "#31353c",
+          "outline-variant":        "#3c4a42",
+          "outline":                "#86948a",
+          "surface":                "#10141a",
+          "surface-container-high": "#262a31",
+          "secondary":              "#adc6ff",
+        },
+        fontFamily: {
+          sans:    ["Geist", "Inter", "sans-serif"],
+          display: ["Geist", "sans-serif"],
+        },
+      },
+    },
+  }
+</script>
+<style>
+  /* ── Base ── */
+  html { color-scheme: dark; }
+  body { font-family:'Geist',sans-serif; background:#10141a; color:#dfe2eb; -webkit-font-smoothing:antialiased; }
+  .material-symbols-outlined { font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; }
+
+  /* ── Sidebar nav ── */
+  .nav-link { display:flex; align-items:center; gap:10px; padding:9px 14px; border-radius:10px; color:#bbcabf; text-decoration:none; font-size:14px; font-weight:500; transition:background .15s,color .15s; }
+  .nav-link:hover  { background:#1c2026; color:#dfe2eb; }
+  .nav-link.active { background:#1c2026; color:#4edea3; }
+
+  /* ── Modals ── */
+  .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.78); backdrop-filter:blur(6px); align-items:center; justify-content:center; z-index:1000; }
+  .modal-overlay.open { display:flex; }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width:5px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:#3c4a42; border-radius:3px; }
+
+  /* ── Status badges ── */
+  .badge { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700; padding:3px 9px; border-radius:20px; letter-spacing:.02em; }
+  .badge-active   { background:rgba(78,222,163,.12); color:#4edea3; border:1px solid rgba(78,222,163,.28); }
+  .badge-due-soon { background:rgba(250,204,21,.12); color:#facc15; border:1px solid rgba(250,204,21,.28); }
+  .badge-overdue  { background:rgba(248,113,113,.12); color:#f87171; border:1px solid rgba(248,113,113,.28); }
+  .badge-paused   { background:rgba(156,163,175,.10); color:#9ca3af; border:1px solid rgba(156,163,175,.22); }
+  .badge-freq     { background:rgba(173,198,255,.08); color:#adc6ff; border:1px solid rgba(173,198,255,.18); }
+
+  /* ── Subscription card ── */
+  .sub-card { background:#1c2026; border:1px solid #3c4a42; border-radius:16px; padding:20px; display:flex; flex-direction:column; gap:0; transition:border-color .2s,box-shadow .2s,transform .2s; }
+  .sub-card:hover { border-color:rgba(78,222,163,.32); box-shadow:0 10px 28px rgba(78,222,163,.08); transform:translateY(-2px); }
+
+  /* ── Logo tile ── */
+  .logo-tile { width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:22px; flex-shrink:0; overflow:hidden; background:#262a31; border:1px solid #3c4a42; }
+  .logo-tile img { width:28px; height:28px; object-fit:contain; border-radius:4px; }
+
+  /* ── Renewal countdown ── */
+  .renewal-pill { display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:600; padding:4px 10px; border-radius:8px; }
+  .renewal-soon    { background:rgba(250,204,21,.10); color:#facc15; }
+  .renewal-ok      { background:rgba(78,222,163,.08); color:#4edea3; }
+  .renewal-overdue { background:rgba(248,113,113,.10); color:#f87171; }
+  .renewal-paused  { background:rgba(156,163,175,.08); color:#9ca3af; }
+  .renewal-none    { color:#86948a; font-size:12px; }
+
+  /* ── Action icon buttons ── */
+  .act-btn { display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:8px; border:1px solid transparent; cursor:pointer; transition:all .15s; text-decoration:none; }
+  .act-btn:hover { transform:scale(1.08); }
+  .act-btn:active { transform:scale(0.94); }
+  .act-btn .material-symbols-outlined { font-size:16px; }
+  .act-edit   { color:#adc6ff; border-color:rgba(173,198,255,.18); background:rgba(173,198,255,.06); }
+  .act-edit:hover   { background:rgba(173,198,255,.16); }
+  .act-pause  { color:#facc15; border-color:rgba(250,204,21,.18); background:rgba(250,204,21,.06); }
+  .act-pause:hover  { background:rgba(250,204,21,.16); }
+  .act-delete { color:#f87171; border-color:rgba(248,113,113,.18); background:rgba(248,113,113,.06); }
+  .act-delete:hover { background:rgba(248,113,113,.16); }
+
+  /* ── Filter chips ── */
+  .chip { padding:4px 12px; border-radius:20px; font-size:12px; font-weight:600; border:1px solid #3c4a42; color:#bbcabf; background:transparent; cursor:pointer; transition:all .15s; white-space:nowrap; }
+  .chip:hover { transform:translateY(-1px); }
+  .chip:hover, .chip.active { background:rgba(78,222,163,.1); color:#4edea3; border-color:rgba(78,222,163,.32); }
+
+  /* ── Progress bar ── */
+  .prog-track { height:3px; background:#3c4a42; border-radius:2px; overflow:hidden; }
+  .prog-fill  { height:100%; background:linear-gradient(90deg,#4edea3,#adc6ff); border-radius:2px; }
+
+  /* ── Divider ── */
+  .divider { height:1px; background:#3c4a42; margin:0; }
+
+  /* ── Timeline row ── */
+  .timeline-row { display:flex; align-items:center; gap:12px; padding:10px 20px; transition:background .12s; }
+  .timeline-row:hover { background:#262a31; }
+  .tl-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+
+  /* ── Input theming ── */
+  input[type="date"]::-webkit-calendar-picker-indicator { filter:invert(.6); cursor:pointer; }
+  .inp {
+    background:#10141a !important;
+    border:1px solid #3c4a42;
+    border-radius:10px;
+    padding:10px 14px;
+    color:#dfe2eb !important;
+    font-size:14px;
+    transition:border-color .15s;
+    width:100%;
+    color-scheme:dark;
+    -webkit-appearance:none;
+    appearance:none;
+  }
+  .inp:focus { outline:none; border-color:#4edea3; box-shadow:0 0 0 3px rgba(78,222,163,.12); }
+  .inp::placeholder { color:#86948a; }
+  .inp:-webkit-autofill,
+  .inp:-webkit-autofill:hover,
+  .inp:-webkit-autofill:focus {
+    -webkit-box-shadow:0 0 0 1000px #10141a inset !important;
+    -webkit-text-fill-color:#dfe2eb !important;
+    caret-color:#dfe2eb;
+  }
+  select.inp {
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2386948a' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;
+    background-position:right 14px center;
+    padding-right:38px;
+    cursor:pointer;
+  }
+  select.inp option { background:#1c2026; color:#dfe2eb; }
+
+  /* Label styling for modals */
+  .modal-label { display:block; font-size:11px; font-weight:700; color:#86948a; text-transform:uppercase; letter-spacing:.06em; margin-bottom:6px; }
+
+  /* Recurring-type selector: clear highlight on whichever option is selected */
+  .type-option.type-selected { border-color:#4edea3; background:rgba(78,222,163,.08); }
+
+  /* Modal field group */
+  .modal-field { display:flex; flex-direction:column; gap:0; }
+
+  /* ── Insight panel section ── */
+  .insight-section + .insight-section { border-top:1px solid #3c4a42; }
+</style>
+</head>
+<body class="bg-surface text-on-surface min-h-screen">
+
+<div class="flex min-h-screen">
+
+  {% include 'partials/sidebar.html' %}
+
+  <!-- ═══════════════════ MAIN ═══════════════════ -->
+  <main class="flex-1 overflow-y-auto min-w-0">
+    {% include 'partials/mobile_topbar.html' %}
+    <div class="max-w-7xl mx-auto px-7 py-8">
+
+      <!-- ── Page Header ── -->
+      <div class="flex items-center justify-between mb-7">
+        <div>
+          <h1 class="text-[22px] font-extrabold tracking-tight leading-tight">Recurring Expenses</h1>
+          <p class="text-on-surface-variant text-sm mt-0.5">Track subscriptions and recurring commitments.</p>
+        </div>
+        <button
+          onclick="document.getElementById('modal-add').classList.add('open')"
+          class="flex items-center gap-2 bg-primary text-on-primary px-5 py-2.5 rounded-xl font-bold hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-primary/15 text-sm"
+        >
+          <span class="material-symbols-outlined" style="font-size:17px;">add</span>
+          Add Subscription
+        </button>
+      </div>
+
+      <!-- ── Summary Cards ── -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-7">
+        <!-- Monthly -->
+        <div class="bg-surface-container border border-outline-variant rounded-2xl p-5">
+          <p class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Recurring Spend</p>
+          <p class="text-[28px] font-extrabold text-primary leading-none">₹{{ "{:,.0f}".format(monthly_total) }}<span class="text-sm font-semibold text-on-surface-variant">/mo</span></p>
+          <p class="text-xs text-on-surface-variant mt-2">
+            {% set active_items = items | selectattr('status', 'equalto', 'active') | list %}
+            {% if active_items %}Across {{ active_items|length }} active subscription{{ 's' if active_items|length != 1 else '' }}
+            {% else %}No active subscriptions{% endif %}
+          </p>
+        </div>
+        <!-- Active count -->
+        <div class="bg-surface-container border border-outline-variant rounded-2xl p-5">
+          <p class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Active Subscriptions</p>
+          <p class="text-[28px] font-extrabold leading-none">{{ active_count }}</p>
+          <div class="flex items-center gap-2 mt-2 flex-wrap">
+            <span class="text-xs text-primary font-semibold">{{ active_count }} Active</span>
+            {% if items|length > active_count %}
+            <span class="text-on-surface-variant/40 text-xs">·</span>
+            <span class="text-xs text-on-surface-variant/60">{{ items|length - active_count }} Paused</span>
+            {% endif %}
+            <span class="text-on-surface-variant/40 text-xs">·</span>
+            <span class="text-xs text-on-surface-variant">{{ items|length }} Total</span>
+          </div>
+        </div>
+        <!-- Annual -->
+        {% set active_annual_total = items | selectattr('status', 'equalto', 'active') | sum(attribute='yearly') %}
+        <div class="bg-surface-container border border-outline-variant rounded-2xl p-5">
+          <p class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Estimated Annual Spend</p>
+          <p class="text-[28px] font-extrabold text-secondary leading-none">₹{{ "{:,.0f}".format(active_annual_total) }}<span class="text-sm font-semibold text-on-surface-variant">/yr</span></p>
+          <p class="text-xs text-on-surface-variant mt-2">Based on active plans</p>
+        </div>
+      </div>
+
+      <!-- ── Body: 70/30 layout ── -->
+      <div class="flex flex-col lg:flex-row gap-5 items-start">
+
+        <!-- ════ LEFT — 70% ════ -->
+        <div class="flex-1 min-w-0 flex flex-col gap-5">
+
+          <!-- Upcoming Charges -->
+          <div class="bg-surface-container border border-outline-variant rounded-2xl overflow-hidden">
+            <div class="flex items-center gap-2 px-5 py-3.5 border-b border-outline-variant">
+              <span class="material-symbols-outlined text-primary" style="font-size:17px;">event_upcoming</span>
+              <h2 class="text-sm font-bold">Upcoming Charges</h2>
+            </div>
+
+            {% set upcoming = items | selectattr('next_date') | selectattr('status', 'equalto', 'active') | list | sort(attribute='next_date') %}
+            {% if upcoming %}
+              <div class="divide-y divide-outline-variant">
+                {% for item in upcoming[:6] %}
+                <div class="timeline-row" data-next="{{ item.next_date }}" data-type="{{ item.recurring_type }}">
+                  <div class="tl-dot bg-on-surface-variant/30 tl-status"></div>
+                  <span class="text-lg w-6 text-center flex-shrink-0">{{ item.icon }}</span>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-semibold text-on-surface truncate">{{ item.name }}</p>
+                    <p class="text-xs text-on-surface-variant">
+                      {% if item.repeats == 'Daily' %}Next deduction · {% endif %}
+                      {{ item.next_date }}
+                    </p>
+                  </div>
+                  <div class="text-right flex-shrink-0">
+                    <p class="text-sm font-bold">₹{{ "{:,.0f}".format(item.amount) }}</p>
+                    <p class="text-xs tl-label text-on-surface-variant"></p>
+                  </div>
+                </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <div class="flex flex-col items-center gap-2.5 py-6 px-6 text-center">
+                <span class="material-symbols-outlined text-on-surface-variant/25" style="font-size:32px;">calendar_clock</span>
+                <div>
+                  <p class="text-sm font-semibold text-on-surface mb-1">No upcoming charges scheduled</p>
+                  <p class="text-xs text-on-surface-variant">Add renewal dates to subscriptions to automatically track future payments.</p>
+                </div>
+                {% if items %}
+                <button onclick="document.getElementById('modal-add').classList.add('open')"
+                  class="text-xs font-bold text-primary border border-primary/30 bg-primary/6 px-4 py-2 rounded-lg hover:bg-primary/12 transition-colors">
+                  Add Renewal Date
+                </button>
+                {% endif %}
+              </div>
+            {% endif %}
+          </div>
+
+          <!-- Search + Filter (hidden when ≤2 items) -->
+          {% if items | length > 2 %}
+          <div class="flex flex-col gap-2.5" id="searchBlock">
+            <div class="flex items-center gap-2 bg-surface-container border border-outline-variant rounded-xl px-4 py-2.5">
+              <span class="material-symbols-outlined text-on-surface-variant/60" style="font-size:17px;">search</span>
+              <input id="searchInput" type="text" placeholder="Search subscriptions…"
+                class="flex-1 bg-transparent text-sm text-on-surface placeholder-on-surface-variant/40 focus:outline-none"
+                oninput="filterCards()"/>
+              <button id="searchClear" class="text-on-surface-variant/40 hover:text-on-surface-variant hidden" onclick="clearSearch()">
+                <span class="material-symbols-outlined" style="font-size:16px;">close</span>
+              </button>
+            </div>
+            <div class="flex items-center gap-2 flex-wrap" id="filterRow">
+              <button class="chip active" data-filter="all" onclick="setFilter('all',this)">All</button>
+              <button class="chip" data-filter="daily" onclick="setFilter('daily',this)">Daily</button>
+              <button class="chip" data-filter="weekly" onclick="setFilter('weekly',this)">Weekly</button>
+              <button class="chip" data-filter="monthly" onclick="setFilter('monthly',this)">Monthly</button>
+              <button class="chip" data-filter="yearly" onclick="setFilter('yearly',this)">Yearly</button>
+              {% set cats = items | map(attribute='category') | select | list | unique %}
+              {% for cat in cats %}{% if cat %}
+              <button class="chip" data-filter="{{ cat | lower }}" onclick="setFilter('{{ cat | lower }}',this)">{{ cat | title }}</button>
+              {% endif %}{% endfor %}
+            </div>
+          </div>
+          {% endif %}
+
+          <!-- Subscription Cards -->
+          {% if items %}
+          <div id="cardsGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {% for item in items %}
+            <div class="sub-card subscription-card"
+              data-name="{{ item.name | lower }}"
+              data-category="{{ (item.category or '') | lower }}"
+              data-freq="{{ item.repeats | lower }}"
+              data-next="{{ item.next_date or '' }}"
+              data-status="{{ item.status }}"
+              data-type="{{ item.recurring_type }}"
+              data-amount="{{ item.amount }}"
+              data-yearly="{{ item.yearly }}"
+            >
+              <!-- Header row: logo + name + status badge -->
+              <div class="flex items-start gap-3 mb-3">
+                <div class="logo-tile" id="logo-{{ loop.index }}">
+                  <!-- JS will inject img or keep emoji fallback -->
+                  <span class="logo-fallback">{{ item.icon }}</span>
+                </div>
+                <div class="flex-1 min-w-0 pt-0.5">
+                  <div class="flex items-start justify-between gap-2">
+                    <h3 class="text-[15px] font-extrabold text-on-surface leading-tight truncate">{{ item.name }}</h3>
+                    <span class="card-status badge badge-active flex-shrink-0 mt-0.5">
+                      <span class="status-dot w-1.5 h-1.5 rounded-full bg-current opacity-80"></span>
+                      Active
+                    </span>
+                  </div>
+                  <div class="flex items-center gap-1.5 mt-1 flex-wrap">
+                    {% if item.category %}
+                    <span class="text-xs text-on-surface-variant">{{ item.category | title }}</span>
+                    <span class="text-on-surface-variant/30 text-xs">·</span>
+                    {% endif %}
+                    <span class="badge badge-freq">{{ item.repeats }}</span>
+                    <span class="badge {{ 'badge-active' if item.recurring_type == 'auto' else 'badge-due-soon' }}">{{ 'Auto' if item.recurring_type == 'auto' else 'Manual' }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Amount — primary data point -->
+              <div class="mb-3">
+                <span class="text-[22px] font-extrabold tracking-tight">₹{{ "{:,.0f}".format(item.amount) }}</span>
+                <span class="text-xs text-on-surface-variant ml-1">/{{ item.repeats | lower }}</span>
+              </div>
+
+              <!-- Renewal countdown -->
+              <div class="mb-4">
+                {% if item.next_date %}
+                <div class="renewal-pill renewal-ok card-renewal" data-next="{{ item.next_date }}">
+                  <span class="material-symbols-outlined" style="font-size:13px;">autorenew</span>
+                  <span class="renewal-text">Checking…</span>
+                </div>
+                {% else %}
+                <div class="flex items-center gap-2">
+                  <span class="renewal-none">Renewal date: Not set</span>
+                  <button type="button" onclick='openEditModal({{ item.id }}, {{ item.name | tojson }}, {{ item.amount }}, {{ item.repeats | tojson }}, {{ (item.category or "") | tojson }}, {{ (item.next_date or "") | tojson }}, {{ item.icon | tojson }}, {{ item.recurring_type | tojson }})' class="text-xs text-primary font-semibold hover:underline">+ Add date</button>
+                </div>
+                {% endif %}
+              </div>
+
+              <!-- Annual commitment row — intentionally lower emphasis than the
+                   recurring amount above, which stays the primary figure -->
+              <div class="flex items-center gap-1.5 text-xs text-on-surface-variant/60 mb-4">
+                <span class="material-symbols-outlined" style="font-size:13px;">calendar_month</span>
+                Annual commitment:
+                <span class="font-medium text-on-surface-variant">₹{{ "{:,.0f}".format(item.yearly) }}</span>
+              </div>
+
+              <!-- Actions -->
+              <div class="pt-3 border-t border-outline-variant flex items-center gap-2">
+                {% if item.recurring_type == 'manual' and item.status == 'active' %}
+                <button type="button" onclick="confirmPaid({{ item.id }})" class="act-btn" title="Mark as paid — advances the due date" style="color:#4edea3;border-color:rgba(78,222,163,.18);background:rgba(78,222,163,.06);">
+                  <span class="material-symbols-outlined">task_alt</span>
+                </button>
+                {% endif %}
+                <button type="button" onclick='openEditModal({{ item.id }}, {{ item.name | tojson }}, {{ item.amount }}, {{ item.repeats | tojson }}, {{ (item.category or "") | tojson }}, {{ (item.next_date or "") | tojson }}, {{ item.icon | tojson }}, {{ item.recurring_type | tojson }})' class="act-btn act-edit" title="Edit subscription">
+                  <span class="material-symbols-outlined">edit</span>
+                </button>
+                <button type="button" onclick="toggleRecurring({{ item.id }}, this)" class="act-btn act-pause" title="{{ 'Resume subscription' if item.status == 'paused' else 'Pause subscription' }}">
+                  <span class="material-symbols-outlined">{{ 'play_arrow' if item.status == 'paused' else 'pause' }}</span>
+                </button>
+                <button class="act-btn act-delete ml-auto" title="Delete subscription"
+                  onclick="confirmDelete('/delete-recurring/{{ item.id }}','{{ item.name }}')">
+                  <span class="material-symbols-outlined">delete</span>
+                </button>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+
+          <!-- Filter empty state -->
+          <div id="emptyFilter" class="hidden bg-surface-container border border-outline-variant rounded-2xl py-12 text-center">
+            <span class="material-symbols-outlined text-on-surface-variant/25 mb-3 block" style="font-size:36px;">search_off</span>
+            <p class="font-bold text-on-surface mb-1">No matches found</p>
+            <p class="text-sm text-on-surface-variant">Try a different search or filter.</p>
+          </div>
+
+          {% else %}
+          <!-- Zero state -->
+          <div class="bg-surface-container border border-outline-variant rounded-2xl py-16 text-center">
+            <span class="material-symbols-outlined text-on-surface-variant/20 mb-4 block" style="font-size:52px;">autorenew</span>
+            <p class="font-extrabold text-on-surface text-lg mb-1">No recurring expenses yet</p>
+            <p class="text-sm text-on-surface-variant mb-6">Add your first subscription or bill to start tracking.</p>
+            <button onclick="document.getElementById('modal-add').classList.add('open')"
+              class="inline-flex items-center gap-2 bg-primary text-on-primary px-6 py-2.5 rounded-xl font-bold hover:brightness-110 transition-all text-sm">
+              <span class="material-symbols-outlined" style="font-size:17px;">add</span>
+              Add First Subscription
+            </button>
+          </div>
+          {% endif %}
+
+        </div><!-- /LEFT -->
+
+        <!-- ════ RIGHT — 30% Insights Panel ════ -->
+        <div class="w-full lg:w-72 flex-shrink-0">
+          <div class="bg-surface-container border border-outline-variant rounded-2xl overflow-hidden sticky top-6">
+
+            <!-- Panel header -->
+            <div class="px-5 py-4 border-b border-outline-variant">
+              <h3 class="font-extrabold text-sm tracking-wide">Insights</h3>
+            </div>
+
+            <!-- ① Smart Insight -->
+            <div class="insight-section px-5 py-4">
+              <div class="flex items-center gap-2 mb-2.5">
+                <span class="text-base">💡</span>
+                <p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Smart Insight</p>
+              </div>
+              <div class="text-sm text-on-surface-variant leading-relaxed space-y-1.5" id="insightBody">
+                {% set active_items = items | selectattr('status', 'equalto', 'active') | list %}
+                {% if active_items %}
+                  <p><span class="font-semibold text-on-surface">{{ top_category_name | title }}</span> accounts for <span class="text-primary font-bold">{{ top_category_pct }}%</span> of your recurring spending.</p>
+                  {% set insight_annual = active_items | sum(attribute='yearly') %}
+                  <p>{{ active_items | length }} active subscription{{ 's' if active_items|length != 1 else '' }} · <span class="text-secondary font-bold">₹{{ "{:,.0f}".format(insight_annual) }}/yr</span></p>
+                {% elif items %}
+                  <p class="text-on-surface-variant/70">All subscriptions are paused.</p>
+                  <p class="text-xs">Resume one to see spending insights.</p>
+                {% else %}
+                  <p>Add subscriptions to see spending insights here.</p>
+                {% endif %}
+              </div>
+              <a href="/monthly-report" class="inline-flex items-center gap-1 text-xs font-bold text-primary mt-3 hover:underline">
+                View in Reports <span class="material-symbols-outlined" style="font-size:13px;">arrow_forward</span>
+              </a>
+            </div>
+
+            <!-- ② Annual Commitments (renamed from "Savings Opportunities" —
+                 that name implied cancelling recurring items, including
+                 things like investments, which was misleading) -->
+            {% set active_subs = items | selectattr('status', 'equalto', 'active') | list %}
+            {% set paused_subs = items | selectattr('status', 'equalto', 'paused') | list %}
+            {% if items %}
+            <div class="insight-section">
+              <div class="px-5 py-3.5 flex items-center gap-2 border-b border-outline-variant/60">
+                <span class="text-base">💰</span>
+                <p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Annual Commitments</p>
+              </div>
+              {% if active_subs %}
+              <div class="divide-y divide-outline-variant/50">
+                {% for item in active_subs | sort(attribute='yearly', reverse=true) %}
+                {% if loop.index <= 3 %}
+                <div class="flex items-center justify-between px-5 py-2.5 gap-3 hover:bg-surface-container-high transition-colors">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <span class="text-sm flex-shrink-0">{{ item.icon }}</span>
+                    <span class="text-sm text-on-surface truncate">{{ item.name }}</span>
+                  </div>
+                  <div class="text-right flex-shrink-0">
+                    <p class="text-xs font-bold text-on-surface">₹{{ "{:,.0f}".format(item.yearly) }}/yr</p>
+                  </div>
+                </div>
+                {% endif %}
+                {% endfor %}
+                {% if active_subs | length > 3 %}
+                <p class="text-xs text-on-surface-variant/70 px-5 py-2">+{{ active_subs | length - 3 }} more active</p>
+                {% endif %}
+              </div>
+              <div class="px-5 py-3 bg-surface-container-high/60">
+                {% set total_commitment = active_subs | sum(attribute='yearly') %}
+                <p class="text-xs text-on-surface-variant">Total across active items: <span class="font-bold text-primary">₹{{ "{:,.0f}".format(total_commitment) }}/year</span></p>
+              </div>
+              {% else %}
+              <div class="px-5 py-4 text-xs text-on-surface-variant/70">No active recurring commitments.</div>
+              {% endif %}
+              {% if paused_subs %}
+              <div class="border-t border-outline-variant/60">
+                <div class="px-5 py-2.5 flex items-center gap-2">
+                  <span class="material-symbols-outlined text-on-surface-variant/50" style="font-size:13px;">pause_circle</span>
+                  <p class="text-xs font-bold text-on-surface-variant/60 uppercase tracking-wider">Paused</p>
+                </div>
+                {% set paused_annual = paused_subs | sum(attribute='yearly') %}
+                {% for item in paused_subs | sort(attribute='yearly', reverse=true) %}
+                <div class="flex items-center justify-between px-5 py-2 gap-3 opacity-55">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <span class="text-sm flex-shrink-0">{{ item.icon }}</span>
+                    <span class="text-sm text-on-surface-variant truncate">{{ item.name }}</span>
+                  </div>
+                  <div class="text-right flex-shrink-0">
+                    <p class="text-xs font-semibold text-on-surface-variant">₹{{ "{:,.0f}".format(item.yearly) }}/yr</p>
+                  </div>
+                </div>
+                {% endfor %}
+                <div class="px-5 py-2.5 bg-surface-container-high/40">
+                  <p class="text-xs text-on-surface-variant/60">If resumed → +<span class="font-semibold">₹{{ "{:,.0f}".format(paused_annual) }}/yr</span></p>
+                </div>
+              </div>
+              {% endif %}
+            </div>
+
+            <!-- ③ Budget Impact -->
+            <div class="insight-section px-5 py-4">
+              <div class="flex items-center justify-between mb-2.5">
+                <div class="flex items-center gap-2">
+                  <span class="text-base">📊</span>
+                  <p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Budget Impact</p>
+                </div>
+                {% if budget and budget > 0 %}
+                <span class="text-sm font-extrabold {{ 'text-red-400' if budget_percentage >= 100 else ('text-yellow-400' if budget_percentage >= 80 else 'text-primary') }}">{{ budget_percentage }}%</span>
+                {% endif %}
+              </div>
+              <p class="text-sm text-on-surface-variant">Recurring spend: <span class="font-bold text-on-surface">₹{{ "{:,.0f}".format(monthly_total) }}/mo</span></p>
+              <div class="prog-track mt-2.5 mb-1">
+                <div class="prog-fill {{ 'bg-red-400' if budget_percentage >= 100 else '' }}" style="width:{{ budget_percentage if budget_percentage <= 100 else 100 }}%" id="budgetBar"></div>
+              </div>
+              {% if budget and budget > 0 %}
+              <p class="text-xs text-on-surface-variant">of ₹{{ "{:,.0f}".format(budget) }}/mo budget target</p>
+              <button type="button" onclick="openBudgetModal()" class="text-xs text-primary font-semibold hover:underline mt-1.5">Edit budget target</button>
+              {% else %}
+              <button type="button" onclick="openBudgetModal()" class="text-xs text-primary font-semibold hover:underline">Set a budget to see %</button>
+              {% endif %}
+            </div>
+            {% endif %}
+
+          </div>
+        </div><!-- /RIGHT -->
+
+      </div><!-- /body -->
+    </div>
+  </main>
+</div>
+
+<!-- ═══════════ ADD SUBSCRIPTION MODAL ═══════════ -->
+<div id="modal-add" class="modal-overlay" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="bg-surface-container border border-outline-variant rounded-2xl p-7 w-full max-w-md mx-4 shadow-2xl max-h-[92vh] overflow-y-auto">
+    <div class="flex items-center justify-between mb-5">
+      <h2 class="text-lg font-extrabold">Add Subscription</h2>
+      <button onclick="document.getElementById('modal-add').classList.remove('open')" class="text-on-surface-variant hover:text-on-surface transition-colors w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-container-high">
+        <span class="material-symbols-outlined" style="font-size:20px;">close</span>
+      </button>
+    </div>
+
+    <form method="POST" id="addForm" class="flex flex-col gap-4">
+      <div>
+        <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Name</label>
+        <input type="text" name="name" placeholder="e.g. Netflix, Gym membership" required class="inp"/>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Amount (₹)</label>
+          <input type="number" name="amount" placeholder="0.00" step="0.01" min="0" required class="inp"/>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Frequency</label>
+          <select name="repeats" class="inp">
+            <option>Daily</option>
+            <option>Weekly</option>
+            <option>Monthly</option>
+            <option>Yearly</option>
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Category <span class="normal-case font-normal text-on-surface-variant/60">(optional)</span></label>
+        <select name="category" class="inp">
+          <option value="">No category</option>
+          {% for cat_name, cat_icon in categories %}
+          <option value="{{ cat_name }}">{{ cat_icon }} {{ cat_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Next Charge Date</label>
+        <input type="date" name="next_charge_date" class="inp"/>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Recurring Type</label>
+        <div class="grid grid-cols-2 gap-2">
+          <label class="type-option flex flex-col gap-0.5 px-3 py-2.5 rounded-xl border border-outline-variant cursor-pointer text-sm hover:border-primary/40 transition-colors">
+            <span class="flex items-center gap-1.5 font-bold"><input type="radio" name="recurring_type" value="auto" checked class="accent-primary"/> Automatic</span>
+            <span class="text-xs text-on-surface-variant pl-5">Subscriptions, SIPs, gold</span>
+          </label>
+          <label class="type-option flex flex-col gap-0.5 px-3 py-2.5 rounded-xl border border-outline-variant cursor-pointer text-sm hover:border-primary/40 transition-colors">
+            <span class="flex items-center gap-1.5 font-bold"><input type="radio" name="recurring_type" value="manual" class="accent-primary"/> Manual</span>
+            <span class="text-xs text-on-surface-variant pl-5">Bills, rent, EMIs</span>
+          </label>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Icon</label>
+        <select name="icon" class="inp">
+          <option value="📺">📺  Streaming / TV</option>
+          <option value="🎵">🎵  Music</option>
+          <option value="🏠">🏠  Rent / Housing</option>
+          <option value="💪">💪  Fitness / Gym</option>
+          <option value="☁️">☁️  Cloud / Software</option>
+          <option value="📱">📱  Phone / Mobile</option>
+          <option value="🌐">🌐  Internet</option>
+          <option value="📰">📰  News / Media</option>
+          <option value="🎮">🎮  Gaming</option>
+          <option value="⚡">⚡  Utilities</option>
+        </select>
+      </div>
+
+      <div class="flex gap-3 pt-2">
+        <button type="button" onclick="document.getElementById('modal-add').classList.remove('open')"
+          class="flex-1 py-2.5 rounded-xl border border-outline-variant text-on-surface-variant hover:bg-surface-container-high transition-all font-bold text-sm">
+          Cancel
+        </button>
+        <button type="submit"
+          class="flex-1 bg-primary text-on-primary py-2.5 rounded-xl font-bold hover:brightness-110 transition-all shadow-lg shadow-primary/15 text-sm">
+          Save Subscription
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ═══════════ EDIT SUBSCRIPTION MODAL ═══════════ -->
+<div id="modal-edit" class="modal-overlay" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="bg-surface-container border border-outline-variant rounded-2xl p-7 w-full max-w-md mx-4 shadow-2xl max-h-[92vh] overflow-y-auto">
+    <div class="flex items-center justify-between mb-5">
+      <h2 class="text-lg font-extrabold">Edit Subscription</h2>
+      <button onclick="document.getElementById('modal-edit').classList.remove('open')" class="text-on-surface-variant hover:text-on-surface transition-colors w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-container-high">
+        <span class="material-symbols-outlined" style="font-size:20px;">close</span>
+      </button>
+    </div>
+
+    <form method="POST" id="editForm" class="flex flex-col gap-4">
+      <div>
+        <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Name</label>
+        <input type="text" name="name" id="edit-name" required class="inp"/>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Amount (₹)</label>
+          <input type="number" name="amount" id="edit-amount" step="0.01" min="0" required class="inp"/>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Frequency</label>
+          <select name="repeats" id="edit-repeats" class="inp">
+            <option>Daily</option>
+            <option>Weekly</option>
+            <option>Monthly</option>
+            <option>Yearly</option>
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Category <span class="normal-case font-normal text-on-surface-variant/60">(optional)</span></label>
+        <select name="category" id="edit-category" class="inp">
+          <option value="">No category</option>
+          {% for cat_name, cat_icon in categories %}
+          <option value="{{ cat_name }}">{{ cat_icon }} {{ cat_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Next Charge Date</label>
+        <input type="date" name="next_charge_date" id="edit-next-date" class="inp"/>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Recurring Type</label>
+        <div class="grid grid-cols-2 gap-2">
+          <label id="edit-type-auto-label" class="type-option flex flex-col gap-0.5 px-3 py-2.5 rounded-xl border border-outline-variant cursor-pointer text-sm hover:border-primary/40 transition-colors">
+            <span class="flex items-center gap-1.5 font-bold"><input type="radio" name="recurring_type" id="edit-type-auto" value="auto" class="accent-primary"/> Automatic</span>
+            <span class="text-xs text-on-surface-variant pl-5">Subscriptions, SIPs, gold</span>
+          </label>
+          <label id="edit-type-manual-label" class="type-option flex flex-col gap-0.5 px-3 py-2.5 rounded-xl border border-outline-variant cursor-pointer text-sm hover:border-primary/40 transition-colors">
+            <span class="flex items-center gap-1.5 font-bold"><input type="radio" name="recurring_type" id="edit-type-manual" value="manual" class="accent-primary"/> Manual</span>
+            <span class="text-xs text-on-surface-variant pl-5">Bills, rent, EMIs</span>
+          </label>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Icon</label>
+        <select name="icon" id="edit-icon" class="inp">
+          <option value="📺">📺  Streaming / TV</option>
+          <option value="🎵">🎵  Music</option>
+          <option value="🏠">🏠  Rent / Housing</option>
+          <option value="💪">💪  Fitness / Gym</option>
+          <option value="☁️">☁️  Cloud / Software</option>
+          <option value="📱">📱  Phone / Mobile</option>
+          <option value="🌐">🌐  Internet</option>
+          <option value="📰">📰  News / Media</option>
+          <option value="🎮">🎮  Gaming</option>
+          <option value="⚡">⚡  Utilities</option>
+        </select>
+      </div>
+
+      <div class="flex gap-3 pt-2">
+        <button type="button" onclick="document.getElementById('modal-edit').classList.remove('open')"
+          class="flex-1 py-2.5 rounded-xl border border-outline-variant text-on-surface-variant hover:bg-surface-container-high transition-all font-bold text-sm">
+          Cancel
+        </button>
+        <button type="submit"
+          class="flex-1 bg-primary text-on-primary py-2.5 rounded-xl font-bold hover:brightness-110 transition-all shadow-lg shadow-primary/15 text-sm">
+          Save Changes
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ═══════════ SET BUDGET MODAL ═══════════ -->
+<div id="modal-budget" class="modal-overlay" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="bg-surface-container border border-outline-variant rounded-2xl p-7 w-full max-w-sm mx-4 shadow-2xl">
+    <div class="flex items-center justify-between mb-5">
+      <h2 class="text-lg font-extrabold">Set Monthly Budget</h2>
+      <button onclick="document.getElementById('modal-budget').classList.remove('open')" class="text-on-surface-variant hover:text-on-surface transition-colors w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-container-high">
+        <span class="material-symbols-outlined" style="font-size:20px;">close</span>
+      </button>
+    </div>
+    <form method="POST" action="/set-budget" id="budgetForm" class="flex flex-col gap-4">
+      <div>
+        <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Monthly Budget (₹)</label>
+        <input type="number" name="monthly_budget" step="0.01" min="0" required value="{{ budget if budget else '' }}" placeholder="e.g. 1000" class="inp"/>
+        <p class="text-xs text-on-surface-variant mt-1.5">We'll compare this against your recurring spend of ₹{{ "{:,.0f}".format(monthly_total) }}/mo.</p>
+      </div>
+      <div class="flex gap-3 pt-1">
+        <button type="button" onclick="document.getElementById('modal-budget').classList.remove('open')"
+          class="flex-1 py-2.5 rounded-xl border border-outline-variant text-on-surface-variant hover:bg-surface-container-high transition-all font-bold text-sm">
+          Cancel
+        </button>
+        <button type="submit"
+          class="flex-1 bg-primary text-on-primary py-2.5 rounded-xl font-bold hover:brightness-110 transition-all shadow-lg shadow-primary/15 text-sm">
+          Save Budget
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ═══════════ DELETE CONFIRM MODAL ═══════════ -->
+<div id="modal-delete" class="modal-overlay" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="bg-surface-container border border-outline-variant rounded-2xl p-6 w-full max-w-sm mx-4 shadow-2xl">
+    <div class="flex items-center gap-3 mb-4">
+      <div class="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center flex-shrink-0">
+        <span class="material-symbols-outlined text-red-400" style="font-size:20px;">delete</span>
+      </div>
+      <div>
+        <h2 class="font-extrabold text-base">Delete Subscription</h2>
+        <p class="text-xs text-on-surface-variant mt-0.5">This action cannot be undone.</p>
+      </div>
+    </div>
+    <p class="text-sm text-on-surface-variant mb-5">Are you sure you want to delete <span id="deleteItemName" class="font-bold text-on-surface"></span>?</p>
+    <div class="flex gap-3">
+      <button onclick="document.getElementById('modal-delete').classList.remove('open')"
+        class="flex-1 py-2.5 rounded-xl border border-outline-variant text-on-surface-variant hover:bg-surface-container-high transition-all font-bold text-sm">
+        Cancel
+      </button>
+      <form id="deleteConfirmForm" method="POST" action="#" class="flex-1">
+        <button type="submit"
+          class="w-full bg-red-500/90 text-white py-2.5 rounded-xl font-bold hover:bg-red-500 transition-all text-sm">
+          Delete
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ TOAST ═══════════ -->
+<div id="toast"
+  class="fixed bottom-6 right-6 bg-surface-container-high border border-outline-variant text-on-surface text-sm font-semibold px-5 py-3 rounded-xl shadow-2xl z-50 flex items-center gap-2.5 opacity-0 pointer-events-none transition-opacity duration-200">
+  <span class="material-symbols-outlined text-primary" style="font-size:16px;">info</span>
+  <span id="toastMsg"></span>
+</div>
+
+<!-- ═══════════ SCRIPTS ═══════════ -->
+<script>
+/* ── Category icon map (mirrors the shared Categories list from the
+   backend) — used as the last fallback tier below. ── */
+const CATEGORY_ICON_MAP = Object.fromEntries({{ categories | tojson }});
+
+/* ── Brand logo map ───────────────────────────────────────────────────────
+   Centralized, easy-to-extend: normalized subscription name -> logo URL.
+   To add/replace a brand, just add or edit one line below — no other code
+   changes needed.
+
+   A `null` value means "known brand, no verified logo source yet" — it
+   falls straight through to the next fallback tier (never a broken image),
+   rather than pointing at a file that doesn't exist. Fill these in once
+   you've sourced a real asset (see note below).
+
+   Asset sourcing for the `null` entries: most of the global SaaS names
+   (Google One, iCloud, Canva, Steam, Xbox, PlayStation) have ready-made,
+   permissively-licensed SVGs on simpleicons.org (MIT/CC0) you can drop into
+   /static/icons/brands/ and point these at. The Indian and fintech-specific
+   ones (Sony LIV, Zee5, Airtel, Jio, Vi, BSNL, Tata Play, Groww, Zerodha,
+   Upstox, CRED) aren't in that set — pull those from each brand's own
+   press/media kit. I deliberately did not guess at exact file URLs for
+   these; a couple I checked on Wikimedia Commons turned out mislabeled or
+   ambiguous, and a wrong guess here is worse than an honest fallback. */
+const BRAND_LOGO_MAP = {
+  // Streaming & Entertainment
+  netflix:            'https://upload.wikimedia.org/wikipedia/commons/7/7a/Logonetflix.png',
+  spotify:            'https://upload.wikimedia.org/wikipedia/commons/thumb/1/19/Spotify_logo_without_text.svg/120px-Spotify_logo_without_text.svg.png',
+  youtube:            'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b8/YouTube_Logo_2017.svg/120px-YouTube_Logo_2017.svg.png',
+  youtubepremium:     'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b8/YouTube_Logo_2017.svg/120px-YouTube_Logo_2017.svg.png',
+  amazonprime:        'https://upload.wikimedia.org/wikipedia/commons/thumb/1/11/Amazon_Prime_Video_logo.svg/120px-Amazon_Prime_Video_logo.svg.png',
+  primevideo:         'https://upload.wikimedia.org/wikipedia/commons/thumb/1/11/Amazon_Prime_Video_logo.svg/120px-Amazon_Prime_Video_logo.svg.png',
+  disneyplus:         'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3e/Disney%2B_logo.svg/120px-Disney%2B_logo.svg.png',
+  applemusic:         'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/Apple_Music_icon.svg/120px-Apple_Music_icon.svg.png',
+  appletv:            'https://upload.wikimedia.org/wikipedia/commons/thumb/2/28/Apple_TV_Plus_Logo.svg/120px-Apple_TV_Plus_Logo.svg.png',
+  appletvplus:        'https://upload.wikimedia.org/wikipedia/commons/thumb/2/28/Apple_TV_Plus_Logo.svg/120px-Apple_TV_Plus_Logo.svg.png',
+  jiohotstar:         'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1e/Disney%2B_Hotstar_logo.svg/120px-Disney%2B_Hotstar_logo.svg.png',
+  hotstar:            'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1e/Disney%2B_Hotstar_logo.svg/120px-Disney%2B_Hotstar_logo.svg.png',
+
+  // Cloud & Productivity
+  googleone:          null,
+  microsoft365:       'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/Microsoft_Office_logo_%282019%E2%80%93present%29.svg/120px-Microsoft_Office_logo_%282019%E2%80%93present%29.svg.png',
+  office365:          'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/Microsoft_Office_logo_%282019%E2%80%93present%29.svg/120px-Microsoft_Office_logo_%282019%E2%80%93present%29.svg.png',
+  icloud:             null,
+  chatgpt:            'https://upload.wikimedia.org/wikipedia/commons/thumb/0/04/ChatGPT_logo.svg/120px-ChatGPT_logo.svg.png',
+  chatgptplus:        'https://upload.wikimedia.org/wikipedia/commons/thumb/0/04/ChatGPT_logo.svg/120px-ChatGPT_logo.svg.png',
+  notion:             'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e9/Notion-logo.svg/120px-Notion-logo.svg.png',
+  canva:              null,
+  adobe:              'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7b/Adobe_Systems_logo_and_wordmark.svg/120px-Adobe_Systems_logo_and_wordmark.svg.png',
+  adobecreativecloud: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7b/Adobe_Systems_logo_and_wordmark.svg/120px-Adobe_Systems_logo_and_wordmark.svg.png',
+  figma:              'https://upload.wikimedia.org/wikipedia/commons/3/33/Figma-logo.svg',
+  github:             'https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Octicons-mark-github.svg/120px-Octicons-mark-github.svg.png',
+  dropbox:            'https://upload.wikimedia.org/wikipedia/commons/thumb/7/74/Dropbox_Icon.svg/120px-Dropbox_Icon.svg.png',
+  slack:              'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d5/Slack_icon_2019.svg/120px-Slack_icon_2019.svg.png',
+  zoom:               'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7b/Zoom_Communications_Logo.svg/120px-Zoom_Communications_Logo.svg.png',
+
+  // Gaming — not yet sourced
+  steam:              null,
+  xboxgamepass:       null,
+  xbox:               null,
+  playstationplus:    null,
+  playstation:        null,
+
+  // Indian Services — not yet sourced
+  sonyliv:            null,
+  zee5:               null,
+  airtel:             null,
+  jio:                null,
+  vi:                 null,
+  vodafoneidea:       null,
+  bsnl:               null,
+  tataplay:           null,
+
+  // Investment Platforms — not yet sourced
+  groww:              null,
+  zerodha:            null,
+  coinbyzerodha:      null,
+  upstox:             null,
+  cred:               null,
+};
+
+/* Case-insensitive, punctuation/space-insensitive matching: "Disney+",
+   "disney plus", and "DISNEY PLUS" all normalize to the same key. */
+function normalizeBrandName(name) {
+  return (name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+function getBrandLogoPath(name) {
+  return BRAND_LOGO_MAP[normalizeBrandName(name)] || null;
+}
+
+/* ── Inject logos, with a proper 3-tier fallback ──────────────────────────
+   1. Brand logo, if the subscription name matches a known brand.
+   2. Otherwise, the user-selected icon already rendered underneath — except
+      for generic recurring investments (SIPs, gold, mutual funds, etc.)
+      not tied to a specific platform, which get the Investment category's
+      icon instead of forcing a brand look they don't have.
+   3. If a brand logo fails to load for any reason, it's simply removed —
+      the fallback emoji is never hidden until the image actually loads, so
+      a broken/missing asset can never show as a broken image. */
+document.querySelectorAll('.subscription-card').forEach(card => {
+  const name = card.dataset.name;
+  const category = card.dataset.category || '';
+  const tile = card.querySelector('.logo-tile');
+  const fallback = tile ? tile.querySelector('.logo-fallback') : null;
+  const logoPath = getBrandLogoPath(name);
+
+  if (tile && logoPath) {
+    const img = document.createElement('img');
+    img.alt = '';
+    img.onload = () => { if (fallback) fallback.style.display = 'none'; };
+    img.onerror = () => { img.remove(); };
+    img.src = logoPath;
+    tile.appendChild(img);
+  } else if (fallback && category === 'investment') {
+    const catIcon = CATEGORY_ICON_MAP['Investment'];
+    if (catIcon) fallback.textContent = catIcon;
+  }
+});
+
+/* ── Date helpers ── */
+function daysUntil(s) {
+  if (!s) return null;
+  const t = new Date(s); t.setHours(0,0,0,0);
+  const n = new Date(); n.setHours(0,0,0,0);
+  return Math.round((t - n) / 86400000);
+}
+function renewalText(d) {
+  if (d === null) return null;
+  if (d < 0)  return `${Math.abs(d)} day${Math.abs(d)===1?'':'s'} overdue`;
+  if (d === 0) return 'Renews today';
+  if (d === 1) return 'Renews tomorrow';
+  return `Renews in ${d} days`;
+}
+function statusFromDays(d) {
+  if (d === null) return 'none';
+  if (d < 0)  return 'overdue';
+  if (d <= 7) return 'due-soon';
+  return 'active';
+}
+
+/* ── Hydrate subscription cards ── */
+document.querySelectorAll('.subscription-card').forEach(card => {
+  const isPaused = card.dataset.status === 'paused';
+  const isAuto = card.dataset.type !== 'manual';
+  const d = daysUntil(card.dataset.next || '');
+  // Auto items (subscriptions, SIPs, digital gold) never show "overdue" —
+  // they just tick on schedule. Only manual items (rent, bills, EMIs) track due/overdue.
+  const status = isPaused ? 'paused' : (isAuto ? 'active' : statusFromDays(d));
+
+  /* status badge */
+  const badge = card.querySelector('.card-status');
+  if (badge) {
+    badge.className = 'card-status badge flex-shrink-0 mt-0.5 ' + ({
+      'active':   'badge-active',
+      'due-soon': 'badge-due-soon',
+      'overdue':  'badge-overdue',
+      'paused':   'badge-paused',
+      'none':     'badge-active',
+    }[status]);
+    badge.innerHTML = `<span class="status-dot w-1.5 h-1.5 rounded-full bg-current opacity-80 inline-block"></span> ` + ({
+      'active':   'Active',
+      'due-soon': 'Due Soon',
+      'overdue':  'Overdue',
+      'paused':   'Paused',
+      'none':     'Active',
+    }[status]);
+  }
+
+  /* renewal pill — update this BEFORE the paused early-return, so paused
+     items never get stuck showing the "Checking…" placeholder forever */
+  const pill = card.querySelector('.card-renewal');
+  if (pill) {
+    const textEl = pill.querySelector('.renewal-text');
+    if (isPaused) {
+      textEl.textContent = 'Paused — no upcoming charge';
+      pill.className = 'renewal-pill renewal-paused';
+    } else if (isAuto) {
+      // Calm, non-judgemental phrasing — no day-counting, no overdue badge.
+      const freqLabel = card.dataset.freq ? card.dataset.freq.charAt(0).toUpperCase() + card.dataset.freq.slice(1) : '';
+      textEl.textContent = d === 0 ? 'Next deduction: today' : `Recurring ${freqLabel}`;
+      pill.className = 'renewal-pill renewal-ok';
+    } else if (d !== null) {
+      textEl.textContent = renewalText(d);
+      pill.className = 'renewal-pill ' + ({
+        'active':   'renewal-ok',
+        'due-soon': 'renewal-soon',
+        'overdue':  'renewal-overdue',
+        'none':     'renewal-ok',
+      }[status]);
+    }
+  }
+
+  if (isPaused) {
+    card.style.opacity = '0.6';
+  }
+});
+
+/* ── Hydrate timeline rows ── */
+document.querySelectorAll('.timeline-row[data-next]').forEach(row => {
+  const isAuto = row.dataset.type !== 'manual';
+  const d = daysUntil(row.dataset.next);
+  const status = isAuto ? 'active' : statusFromDays(d);
+  const dot = row.querySelector('.tl-status');
+  const label = row.querySelector('.tl-label');
+  if (dot) {
+    dot.classList.remove('bg-on-surface-variant/30');
+    dot.classList.add({ active:'bg-primary', 'due-soon':'bg-yellow-400', overdue:'bg-red-400', none:'bg-primary' }[status] || 'bg-primary');
+  }
+  if (label) {
+    label.textContent = isAuto ? 'Recurring' : (d !== null ? renewalText(d).replace('Renews ','') : '');
+  }
+});
+
+/* ── Search & filter ── */
+let activeFilter = 'all';
+function setFilter(val, btn) {
+  activeFilter = val;
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  filterCards();
+}
+function clearSearch() {
+  document.getElementById('searchInput').value = '';
+  document.getElementById('searchClear').classList.add('hidden');
+  filterCards();
+}
+function filterCards() {
+  const q = (document.getElementById('searchInput')?.value || '').toLowerCase();
+  document.getElementById('searchClear')?.classList.toggle('hidden', !q);
+  const cards = document.querySelectorAll('.subscription-card');
+  let vis = 0;
+  cards.forEach(c => {
+    const nm = c.dataset.name.includes(q) || c.dataset.category.includes(q);
+    const fr = activeFilter === 'all' || c.dataset.freq === activeFilter || c.dataset.category === activeFilter;
+    const show = nm && fr;
+    c.style.display = show ? '' : 'none';
+    if (show) vis++;
+  });
+  const ef = document.getElementById('emptyFilter');
+  if (ef) ef.classList.toggle('hidden', vis > 0);
+}
+
+/* ── Recurring-type selector highlight ── */
+function syncTypeHighlight(form) {
+  form.querySelectorAll('input[name="recurring_type"]').forEach(input => {
+    const label = input.closest('.type-option');
+    if (label) label.classList.toggle('type-selected', input.checked);
+  });
+}
+document.querySelectorAll('input[name="recurring_type"]').forEach(input => {
+  input.addEventListener('change', () => syncTypeHighlight(input.closest('form')));
+});
+// Highlight the default-checked option in the Add modal on page load
+document.querySelectorAll('#modal-add, #modal-edit').forEach(modal => {
+  const form = modal.querySelector('form');
+  if (form) syncTypeHighlight(form);
+});
+
+/* ── Edit form: submit via AJAX so scroll position is preserved ── */
+document.getElementById('editForm')?.addEventListener('submit', function (e) {
+  e.preventDefault();
+  const savedScroll = window.scrollY;
+  const fd = new FormData(this);
+  fetch(this.action, { method: 'POST', body: fd, redirect: 'manual' })
+    .then(() => {
+      sessionStorage.setItem('recurringScroll', savedScroll);
+      location.reload();
+    })
+    .catch(() => { this.submit(); });
+});
+
+/* ── Add Subscription form: same AJAX + scroll-preserving pattern ── */
+document.getElementById('addForm')?.addEventListener('submit', function (e) {
+  e.preventDefault();
+  const savedScroll = window.scrollY;
+  const fd = new FormData(this);
+  fetch('/recurring', { method: 'POST', body: fd, redirect: 'manual' })
+    .then(() => {
+      sessionStorage.setItem('recurringScroll', savedScroll);
+      location.reload();
+    })
+    .catch(() => { this.submit(); });
+});
+
+/* ── Set Budget form: same AJAX + scroll-preserving pattern ── */
+document.getElementById('budgetForm')?.addEventListener('submit', function (e) {
+  e.preventDefault();
+  const savedScroll = window.scrollY;
+  const fd = new FormData(this);
+  fetch(this.action, { method: 'POST', body: fd, redirect: 'manual' })
+    .then(() => {
+      sessionStorage.setItem('recurringScroll', savedScroll);
+      location.reload();
+    })
+    .catch(() => { this.submit(); });
+});
+
+/* ── Edit / Budget modal helpers ── */
+function openEditModal(id, name, amount, repeats, category, nextDate, icon, recurringType) {
+  document.getElementById('editForm').action = '/update-recurring/' + id;
+  document.getElementById('edit-name').value = name;
+  document.getElementById('edit-amount').value = amount;
+  document.getElementById('edit-repeats').value = repeats;
+  document.getElementById('edit-category').value = category;
+  document.getElementById('edit-next-date').value = nextDate;
+  document.getElementById('edit-icon').value = icon;
+  document.getElementById('edit-type-auto').checked = (recurringType !== 'manual');
+  document.getElementById('edit-type-manual').checked = (recurringType === 'manual');
+  syncTypeHighlight(document.getElementById('editForm'));
+  document.getElementById('modal-edit').classList.add('open');
+}
+function openBudgetModal() {
+  document.getElementById('modal-budget').classList.add('open');
+}
+
+/* ── Delete confirmation ── */
+function confirmDelete(url, name) {
+  document.getElementById('deleteItemName').textContent = name;
+  document.getElementById('deleteConfirmForm').action = url;
+  document.getElementById('modal-delete').classList.add('open');
+}
+
+/* ── Toast ── */
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  t.style.opacity = '1';
+  setTimeout(() => { t.style.opacity = '0'; }, 2800);
+}
+/* ── Mark as paid (manual items) without scroll-to-top ── */
+function confirmPaid(id) {
+  const savedScroll = window.scrollY;
+  fetch('/confirm-paid/' + id, { method: 'POST', redirect: 'manual' })
+    .then(() => {
+      sessionStorage.setItem('recurringScroll', savedScroll);
+      location.reload();
+    })
+    .catch(() => { location.href = '/confirm-paid/' + id; });
+}
+
+/* ── Toggle recurring (pause/resume) without scroll-to-top ── */
+function toggleRecurring(id, btn) {
+  const savedScroll = window.scrollY;
+  fetch('/toggle-recurring/' + id, { method: 'POST', redirect: 'manual' })
+    .then(() => {
+      sessionStorage.setItem('recurringScroll', savedScroll);
+      location.reload();
+    })
+    .catch(() => { showToast('Something went wrong — please try again.'); });
+}
+
+/* Restore scroll position after reload */
+(function() {
+  const y = sessionStorage.getItem('recurringScroll');
+  if (y !== null) {
+    sessionStorage.removeItem('recurringScroll');
+    requestAnimationFrame(() => window.scrollTo(0, parseInt(y)));
+  }
+})();
+
+{% with messages = get_flashed_messages() %}
+  {% if messages %}{% for message in messages %}showToast("{{ message }}");{% endfor %}{% endif %}
+{% endwith %}
+</script>
+</body>
+</html>

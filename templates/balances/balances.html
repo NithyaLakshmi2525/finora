@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Balances | Finora</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/npm/geist@1.3.0/dist/fonts/geist.min.css" rel="stylesheet"/>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          "surface-dim":            "#10141a",
+          "background":             "#10141a",
+          "surface-container-low":  "#181c22",
+          "on-primary":             "#003824",
+          "primary-container":      "#10b981",
+          "surface-container":      "#1c2026",
+          "on-primary-container":   "#00422b",
+          "primary":                "#4edea3",
+          "on-surface":             "#dfe2eb",
+          "on-surface-variant":     "#bbcabf",
+          "surface-variant":        "#31353c",
+          "outline-variant":        "#3c4a42",
+          "outline":                "#86948a",
+          "surface":                "#10141a",
+          "surface-container-high": "#262a31",
+          "secondary":              "#adc6ff",
+          "error":                  "#f87171",
+        },
+        fontFamily: {
+          sans:    ["Geist", "Inter", "sans-serif"],
+          display: ["Geist", "sans-serif"],
+        },
+      },
+    },
+  }
+</script>
+<style>
+  html { color-scheme: dark; }
+  body { font-family:'Geist',sans-serif; background:#10141a; color:#dfe2eb; -webkit-font-smoothing:antialiased; }
+  .material-symbols-outlined { font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; }
+
+  .nav-link { display:flex; align-items:center; gap:10px; padding:9px 14px; border-radius:10px; color:#bbcabf; text-decoration:none; font-size:14px; font-weight:500; transition:background .15s,color .15s; }
+  .nav-link:hover  { background:#1c2026; color:#dfe2eb; }
+  .nav-link.active { background:#1c2026; color:#4edea3; }
+
+  ::-webkit-scrollbar { width:5px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:#3c4a42; border-radius:3px; }
+
+  .inp {
+    background:#10141a !important;
+    border:1px solid #3c4a42;
+    border-radius:10px;
+    padding:10px 14px;
+    color:#dfe2eb !important;
+    font-size:14px;
+    transition:border-color .15s;
+    width:100%;
+    color-scheme:dark;
+    -webkit-appearance:none;
+    appearance:none;
+  }
+  .inp:focus { outline:none; border-color:#4edea3; box-shadow:0 0 0 3px rgba(78,222,163,.12); }
+  .inp::placeholder { color:#86948a; }
+  .inp.field-error { border-color:#f87171; }
+  .field-error-text { font-size:12px; font-weight:600; color:#f87171; margin-top:-2px; display:none; }
+  .field-error-text.show { display:block; }
+
+  .status-badge { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700; padding:3px 9px; border-radius:20px; letter-spacing:.02em; white-space:nowrap; }
+  /* Consistent color coding across the module: green = coming to you, red = you owe, neutral = settled */
+  .badge-owed-to-you { background:rgba(78,222,163,.10); color:#4edea3; border:1px solid rgba(78,222,163,.24); }
+  .badge-you-owe      { background:rgba(248,113,113,.10); color:#f87171; border:1px solid rgba(248,113,113,.22); }
+  .badge-settled      { background:rgba(187,202,191,.08); color:#bbcabf; border:1px solid rgba(187,202,191,.18); }
+
+  .avatar-chip { width:34px; height:34px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; flex-shrink:0; letter-spacing:.01em; }
+
+  /* ── Balance rows — grid-aligned columns (Person / Status / Reason /
+     Pending / Action) so everything lines up like the old table did, but
+     with softer, less table-like styling and no forced full-width stretch. ── */
+  .balance-grid-cols { grid-template-columns: minmax(150px,1.3fr) minmax(130px,1fr) minmax(110px,1fr) 118px 96px 32px; }
+  .settled-grid-cols { grid-template-columns: minmax(150px,1.3fr) minmax(130px,1fr) minmax(110px,1fr) 130px 32px; }
+  .balance-header-row {
+    display:grid; align-items:center; gap:14px;
+    padding:0 8px 10px; border-bottom:1px solid #3c4a42;
+    font-size:10.5px; font-weight:700; color:#86948a; text-transform:uppercase; letter-spacing:.06em;
+  }
+  .balance-row {
+    display:grid; align-items:center; gap:14px;
+    padding:12px 8px; border-radius:10px;
+    border-bottom:1px solid rgba(60,74,66,.22);
+    transition:background-color .18s ease, box-shadow .18s ease;
+  }
+  .balance-row:last-child { border-bottom:none; }
+  .balance-row:hover { background:rgba(255,255,255,.03); box-shadow:inset 0 0 0 1px rgba(255,255,255,.03); }
+  .balance-meta { font-size:11.5px; color:#86948a; white-space:nowrap; }
+
+  .row-menu-btn { width:26px; height:26px; border-radius:7px; display:flex; align-items:center; justify-content:center; color:#86948a; background:transparent; border:1px solid transparent; cursor:pointer; transition:opacity .15s, background .15s, transform .15s; flex-shrink:0; opacity:.45; }
+  .balance-row:hover .row-menu-btn, .row-menu-btn.menu-open { opacity:.9; }
+  .row-menu-btn:hover, .row-menu-btn.menu-open:hover { opacity:1; background:#262a31; color:#dfe2eb; transform:scale(1.06); }
+  /* Single shared floating menu, positioned via JS with getBoundingClientRect
+     rather than nested `position:absolute` inside each row. The Open/Settled
+     cards use overflow-x-auto for horizontal scroll on narrow screens, and
+     per the CSS overflow spec, setting only one axis (overflow-x) forces the
+     other axis (overflow-y) to compute as `auto` too — which clips any
+     absolutely-positioned descendant that extends past the card's bottom
+     edge. A fixed-position element anchored to the viewport sidesteps that
+     entirely and can flip to open upward near the bottom of the screen. */
+  .row-menu {
+    position:fixed; background:#1c2026; border:1px solid #3c4a42; border-radius:10px;
+    box-shadow:0 10px 28px rgba(0,0,0,.5); z-index:1200; min-width:126px; overflow:hidden;
+    opacity:0; transform:translateY(-4px) scale(.97); pointer-events:none;
+    transition:opacity .16s ease, transform .16s ease;
+  }
+  .row-menu.open { opacity:1; transform:translateY(0) scale(1); pointer-events:auto; }
+  .row-menu button { display:flex; align-items:center; gap:8px; width:100%; text-align:left; padding:8px 12px; font-size:12.5px; font-weight:600; color:#dfe2eb; background:none; border:none; cursor:pointer; transition:background .12s; }
+  .row-menu button:hover { background:#262a31; }
+  .row-menu button.danger { color:#f87171; }
+
+  /* Modal fade + scale, same idiom as the rest of Finora's modals */
+  .modal-overlay {
+    display:flex; position:fixed; inset:0; background:rgba(0,0,0,.78); backdrop-filter:blur(6px);
+    align-items:center; justify-content:center; z-index:1000;
+    opacity:0; pointer-events:none; transition:opacity .2s ease;
+  }
+  .modal-overlay.open { opacity:1; pointer-events:auto; }
+  .modal-box { transform:translateY(10px) scale(.98); transition:transform .2s cubic-bezier(.4,0,.2,1); }
+  .modal-overlay.open .modal-box { transform:translateY(0) scale(1); }
+
+  .stat-card { transition:box-shadow .18s ease, transform .18s ease; }
+  .stat-card:hover { box-shadow:0 10px 26px rgba(0,0,0,.22); transform:translateY(-1px); }
+
+  .load-more-btn { transition:background .15s, transform .12s; }
+  .load-more-btn:active { transform:scale(.98); }
+
+
+  .minp {
+    background:#10141a !important; border:1px solid #3c4a42; border-radius:10px;
+    padding:10px 14px; color:#dfe2eb !important; font-size:14px; width:100%;
+    transition:border-color .15s; color-scheme:dark; -webkit-appearance:none; appearance:none;
+  }
+  .minp:focus { outline:none; border-color:#4edea3; box-shadow:0 0 0 3px rgba(78,222,163,.12); }
+  .minp.field-error { border-color:#f87171; }
+</style>
+</head>
+<body class="bg-surface text-on-surface min-h-screen">
+
+<!-- Toast -->
+<div id="toast"
+  class="fixed bottom-6 right-6 bg-surface-container-high border border-outline-variant text-on-surface text-sm font-semibold px-5 py-3 rounded-xl shadow-2xl z-50 flex items-center gap-2.5 opacity-0 pointer-events-none transition-opacity duration-200">
+  <span class="material-symbols-outlined text-primary" id="toastIcon" style="font-size:16px;">info</span>
+  <span id="toastMsg"></span>
+</div>
+
+<!-- Single shared floating action menu for every balance row — positioned
+     via JS relative to whichever kebab button was clicked, so it always
+     escapes the scrollable card and can flip above the button when there's
+     no room below. -->
+<div id="floatingRowMenu" class="row-menu"></div>
+
+<div class="flex min-h-screen">
+
+  {% include 'partials/sidebar.html' %}
+
+  <!-- ═══════════════════ MAIN ═══════════════════ -->
+  <main class="flex-1 overflow-y-auto min-w-0">
+    {% include 'partials/mobile_topbar.html' %}
+    <div class="max-w-7xl mx-auto px-4 sm:px-7 py-6 sm:py-8">
+
+      <!-- ── Page Header ── -->
+      <div class="mb-7">
+        <h1 class="text-[22px] font-extrabold tracking-tight leading-tight">Balances</h1>
+        <p class="text-on-surface-variant text-sm mt-0.5">Keep track of money you owe and money others owe you.</p>
+      </div>
+
+      <!-- ── Summary Cards ── -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-7">
+        <div class="stat-card bg-surface-container border border-outline-variant rounded-2xl p-5">
+          <p class="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5">People Owe You</p>
+          <p id="statOwedToYou" class="text-[32px] font-extrabold text-primary leading-none tracking-tight">{% if owed_to_you > 0 %}+₹{{ "{:,.0f}".format(owed_to_you) }}{% else %}₹0{% endif %}</p>
+          <p class="text-xs text-on-surface-variant mt-2">Total money coming back to you</p>
+        </div>
+        <div class="stat-card bg-surface-container border border-outline-variant rounded-2xl p-5">
+          <p class="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5">You Owe</p>
+          <p id="statYouOwe" class="text-[32px] font-extrabold text-error leading-none tracking-tight">{% if you_owe > 0 %}-₹{{ "{:,.0f}".format(you_owe) }}{% else %}₹0{% endif %}</p>
+          <p class="text-xs text-on-surface-variant mt-2">Total money you need to pay back</p>
+        </div>
+        <div class="stat-card bg-surface-container border border-outline-variant rounded-2xl p-5">
+          <p class="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5">Net Outstanding</p>
+          <p id="statNetPosition" class="text-[32px] font-extrabold leading-none tracking-tight {{ 'text-primary' if net_position >= 0 else 'text-error' }}">
+            {% if net_position == 0 %}₹0{% else %}{{ '+' if net_position > 0 else '' }}₹{{ "{:,.0f}".format(net_position) }}{% endif %}
+          </p>
+          <p class="text-xs text-on-surface-variant mt-2">What's left across open balances — not your cash balance</p>
+        </div>
+      </div>
+
+      <!-- ── Body: Add Balance + Open Balances ── -->
+      <div class="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-5 items-start mb-7">
+
+        <!-- Add Balance -->
+        <div class="bg-surface-container border border-outline-variant rounded-2xl p-6 pb-8">
+          <h2 class="text-sm font-bold mb-4">Add Balance</h2>
+          <form id="addBalanceForm" class="flex flex-col gap-3" onsubmit="return submitAddBalance(event)">
+            <div>
+              <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Person</label>
+              <input type="text" name="peer_name" id="addPeerName" placeholder="Enter person's name" required class="inp">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Direction</label>
+              <div class="flex flex-col gap-2">
+                <label class="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border border-outline-variant cursor-pointer text-sm transition-colors hover:border-primary/40 has-[:checked]:border-primary/50 has-[:checked]:bg-primary/6">
+                  <input type="radio" name="direction" value="they_owe_me" checked class="accent-primary" onchange="updateAddDirectionUI()">
+                  <span class="font-semibold text-on-surface">They owe me</span>
+                </label>
+                <label class="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border border-outline-variant cursor-pointer text-sm transition-colors hover:border-error/40 has-[:checked]:border-error/50 has-[:checked]:bg-error/6">
+                  <input type="radio" name="direction" value="owe_them" class="accent-error" onchange="updateAddDirectionUI()">
+                  <span class="font-semibold text-on-surface">I owe them</span>
+                </label>
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Amount (₹)</label>
+              <input type="number" step="0.01" min="0" name="amount" id="addAmount" placeholder="0.00" required class="inp">
+              <p class="field-error-text" id="addAmountError"></p>
+            </div>
+            <div id="addCountsAsExpenseWrap" style="display:none;">
+              <label class="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border border-outline-variant cursor-pointer text-sm transition-colors hover:border-primary/40 has-[:checked]:border-primary/50 has-[:checked]:bg-primary/6">
+                <input type="checkbox" name="counts_as_expense" id="addCountsAsExpense" class="accent-primary" onchange="document.getElementById('addExpenseCategoryWrap').style.display = this.checked ? 'block' : 'none';">
+                <span class="font-semibold text-on-surface">Counts as expense</span>
+              </label>
+              <p class="text-[11px] text-on-surface-variant/60 mt-1.5">The money hasn't left your account yet — adds it to your Expenses, Dashboard, and Reports.</p>
+              <div id="addExpenseCategoryWrap" class="mt-2.5" style="display:none;">
+                <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Category</label>
+                <select name="expense_category" id="addExpenseCategory" class="inp"></select>
+              </div>
+            </div>
+            <div id="addLinkedExpenseWrap" style="display:none;">
+              <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">
+                Link to Expense <span class="normal-case font-normal text-on-surface-variant/60">(optional)</span>
+              </label>
+              <select name="linked_expense_id" id="addLinkedExpense" class="inp">
+                <option value="">No linked expense</option>
+              </select>
+              <p class="text-[11px] text-on-surface-variant/60 mt-1.5">If you already paid the full bill, link the expense you logged — this just marks their share as a receivable, it won't add anything new to your spending.</p>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Balance Date</label>
+              <input type="date" name="balance_date" id="addBalanceDate" required class="inp">
+              <p class="text-[11px] text-on-surface-variant/60 mt-1.5">When this was actually lent or borrowed.</p>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">
+                Reason <span class="normal-case font-normal text-on-surface-variant/60">(optional)</span>
+              </label>
+              <input type="text" name="reason" maxlength="255" placeholder="e.g. Dinner, Cab fare, Hostel snacks" class="inp">
+            </div>
+            <button type="submit"
+              class="bg-primary text-on-primary py-2.5 rounded-xl font-bold hover:brightness-110 active:scale-[.98] transition-all shadow-lg shadow-primary/15 text-sm mt-1">
+              Add Balance
+            </button>
+          </form>
+        </div>
+
+        <!-- Open Balances -->
+        <div class="bg-surface-container border border-outline-variant rounded-2xl p-4 sm:p-5 overflow-x-auto">
+          <div class="flex items-center justify-between pb-3 gap-3">
+            <h2 class="text-sm font-bold flex-shrink-0">Open Balances</h2>
+            <div id="balanceSearchWrap" class="relative flex-shrink-0" style="display:none; width:200px;">
+              <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50 pointer-events-none" style="font-size:16px;">search</span>
+              <input id="peopleSearch" type="text" placeholder="Search people…"
+                class="w-full bg-surface border border-outline-variant rounded-xl pl-9 pr-3 text-[13px] text-on-surface placeholder-on-surface-variant/40 focus:outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/15 transition-colors"
+                style="height:38px;"
+                oninput="openBalancesShown = OPEN_BALANCES_PAGE_SIZE; renderOpenBalances()">
+            </div>
+          </div>
+          <div style="min-width:640px;">
+            <div id="balanceHeaderRow" class="balance-header-row balance-grid-cols" style="display:none;">
+              <span>Person</span><span>Status</span><span>Reason</span><span>Age</span><span>Action</span><span></span>
+            </div>
+            <div id="openBalancesList"><p class="text-xs text-on-surface-variant/60 py-2">Loading…</p></div>
+          </div>
+          <div id="loadMoreWrap" class="hidden text-center pt-3"></div>
+          <p id="noSearchResults" class="hidden text-center text-sm text-on-surface-variant py-8">No people match your search.</p>
+        </div>
+      </div>
+
+      <!-- ── Settled History ── -->
+      <div class="bg-surface-container border border-outline-variant rounded-2xl p-4 sm:p-5 overflow-x-auto">
+        <h2 class="text-sm font-bold pb-3">Settled History</h2>
+        <div style="min-width:560px;">
+          <div id="settledHeaderRow" class="balance-header-row settled-grid-cols" style="display:none;">
+            <span>Person</span><span>Status</span><span>Reason</span><span>Date Settled</span><span></span>
+          </div>
+          <div id="settledHistoryList"><p class="text-xs text-on-surface-variant/60 py-2">Loading…</p></div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- ═══════════ SETTLE CONFIRM MODAL ═══════════ -->
+<div id="settleModal" class="modal-overlay" onclick="if(event.target===this)closeSettleModal()">
+  <div class="modal-box bg-surface-container border border-outline-variant rounded-2xl p-6 w-full max-w-sm mx-4 shadow-2xl">
+    <div class="flex items-center gap-3 mb-4">
+      <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+        <span class="material-symbols-outlined text-primary" style="font-size:20px;">check_circle</span>
+      </div>
+      <div>
+        <h2 class="font-extrabold text-base">Mark as settled?</h2>
+        <p class="text-xs text-on-surface-variant mt-0.5">This moves the balance to Settled History.</p>
+      </div>
+    </div>
+    <p class="text-sm text-on-surface-variant mb-5">
+      Confirm that <span id="settleModalName" class="font-bold text-on-surface"></span>'s balance has been squared away.
+    </p>
+    <div class="flex gap-3">
+      <button type="button" onclick="closeSettleModal()"
+        class="flex-1 py-2.5 rounded-xl border border-outline-variant text-on-surface-variant hover:bg-surface-container-high transition-all font-bold text-sm">
+        Cancel
+      </button>
+      <button type="button" onclick="proceedSettle()"
+        class="flex-1 bg-primary text-on-primary py-2.5 rounded-xl font-bold hover:brightness-110 transition-all text-sm">
+        Confirm Settled
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ REOPEN CONFIRM MODAL ═══════════ -->
+<div id="reopenModal" class="modal-overlay" onclick="if(event.target===this)closeReopenModal()">
+  <div class="modal-box bg-surface-container border border-outline-variant rounded-2xl p-6 w-full max-w-sm mx-4 shadow-2xl">
+    <div class="flex items-center gap-3 mb-4">
+      <div class="w-10 h-10 rounded-xl bg-secondary/10 flex items-center justify-center flex-shrink-0">
+        <span class="material-symbols-outlined text-secondary" style="font-size:20px;">restart_alt</span>
+      </div>
+      <div>
+        <h2 class="font-extrabold text-base">Reopen this balance?</h2>
+        <p class="text-xs text-on-surface-variant mt-0.5">It'll move back to Open Balances and out of Settled History.</p>
+      </div>
+    </div>
+    <p class="text-sm text-on-surface-variant mb-5">
+      Confirm reopening <span id="reopenModalName" class="font-bold text-on-surface"></span>'s balance.
+    </p>
+    <div class="flex gap-3">
+      <button type="button" onclick="closeReopenModal()"
+        class="flex-1 py-2.5 rounded-xl border border-outline-variant text-on-surface-variant hover:bg-surface-container-high transition-all font-bold text-sm">
+        Cancel
+      </button>
+      <button type="button" onclick="proceedReopen()"
+        class="flex-1 bg-secondary text-surface py-2.5 rounded-xl font-bold hover:brightness-110 transition-all text-sm">
+        Reopen Balance
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ EDIT BALANCE MODAL ═══════════ -->
+<div id="editModal" class="modal-overlay" onclick="if(event.target===this)closeEditModal()">
+  <div class="modal-box bg-surface-container border border-outline-variant rounded-2xl p-6 w-full max-w-sm mx-4 shadow-2xl">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="font-extrabold text-base">Edit Balance</h2>
+      <button type="button" onclick="closeEditModal()" class="text-on-surface-variant hover:text-on-surface transition-colors w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-container-high">
+        <span class="material-symbols-outlined" style="font-size:20px;">close</span>
+      </button>
+    </div>
+    <form id="editForm" class="flex flex-col gap-4" onsubmit="return submitEditBalance(event)">
+      <div>
+        <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Person</label>
+        <input type="text" id="editPeerName" required class="minp">
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Direction</label>
+        <div class="flex flex-col gap-2">
+          <label class="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border border-outline-variant cursor-pointer text-sm transition-colors hover:border-primary/40 has-[:checked]:border-primary/50 has-[:checked]:bg-primary/6">
+            <input type="radio" name="editDirection" value="they_owe_me" id="editDirectionTheyOwe" class="accent-primary" onchange="updateEditDirectionUI()">
+            <span class="font-semibold text-on-surface">They owe me</span>
+          </label>
+          <label class="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border border-outline-variant cursor-pointer text-sm transition-colors hover:border-error/40 has-[:checked]:border-error/50 has-[:checked]:bg-error/6">
+            <input type="radio" name="editDirection" value="owe_them" id="editDirectionIOwe" class="accent-error" onchange="updateEditDirectionUI()">
+            <span class="font-semibold text-on-surface">I owe them</span>
+          </label>
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Amount (₹)</label>
+        <input type="number" step="0.01" min="0" id="editAmount" required class="minp">
+        <p class="field-error-text" id="editAmountError"></p>
+        <p class="text-[11px] text-on-surface-variant/60 mt-1.5" id="editPartialHint">Received a partial payment? Update this to what's still owed, then Settle once it reaches ₹0.</p>
+      </div>
+      <div id="editCountsAsExpenseWrap" style="display:none;">
+        <label class="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border border-outline-variant cursor-pointer text-sm transition-colors hover:border-primary/40 has-[:checked]:border-primary/50 has-[:checked]:bg-primary/6">
+          <input type="checkbox" id="editCountsAsExpense" class="accent-primary" onchange="document.getElementById('editExpenseCategoryWrap').style.display = this.checked ? 'block' : 'none';">
+          <span class="font-semibold text-on-surface">Counts as expense</span>
+        </label>
+        <p class="text-[11px] text-on-surface-variant/60 mt-1.5">The money hasn't left your account yet — adds it to your Expenses, Dashboard, and Reports.</p>
+        <div id="editExpenseCategoryWrap" class="mt-2.5" style="display:none;">
+          <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Category</label>
+          <select id="editExpenseCategory" class="minp"></select>
+        </div>
+      </div>
+      <div id="editLinkedExpenseWrap" style="display:none;">
+        <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">
+          Link to Expense <span class="normal-case font-normal text-on-surface-variant/60">(optional)</span>
+        </label>
+        <select id="editLinkedExpense" class="minp">
+          <option value="">No linked expense</option>
+        </select>
+        <p class="text-[11px] text-on-surface-variant/60 mt-1.5">If you already paid the full bill, link the expense you logged — this just marks their share as a receivable, it won't add anything new to your spending.</p>
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Balance Date</label>
+        <input type="date" id="editBalanceDate" required class="minp">
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">
+          Reason <span class="normal-case font-normal text-on-surface-variant/60">(optional)</span>
+        </label>
+        <input type="text" id="editReason" maxlength="255" placeholder="e.g. Dinner, Cab fare, Hostel snacks" class="minp">
+      </div>
+      <div id="editSettledDateWrap" style="display:none;">
+        <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Date Settled</label>
+        <input type="date" id="editSettledDate" class="minp">
+      </div>
+      <p class="text-xs text-on-surface-variant/50">Created on <span id="editCreatedDisplay" class="font-semibold text-on-surface-variant/70"></span></p>
+      <div class="flex gap-3 pt-1">
+        <button type="button" onclick="closeEditModal()" class="flex-1 py-2.5 rounded-xl border border-outline-variant text-on-surface-variant hover:bg-surface-container-high transition-all font-bold text-sm">Cancel</button>
+        <button type="submit" class="flex-1 bg-primary text-on-primary py-2.5 rounded-xl font-bold hover:brightness-110 transition-all text-sm">Save Changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ═══════════ DELETE CONFIRM MODAL ═══════════ -->
+<div id="deleteModal" class="modal-overlay" onclick="if(event.target===this)closeDeleteModal()">
+  <div class="modal-box bg-surface-container border border-outline-variant rounded-2xl p-6 w-full max-w-sm mx-4 shadow-2xl">
+    <div class="flex items-center gap-3 mb-4">
+      <div class="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center flex-shrink-0">
+        <span class="material-symbols-outlined text-red-400" style="font-size:20px;">delete</span>
+      </div>
+      <div>
+        <h2 class="font-extrabold text-base">Delete balance?</h2>
+        <p class="text-xs text-on-surface-variant mt-0.5">This action cannot be undone.</p>
+      </div>
+    </div>
+    <p class="text-sm text-on-surface-variant mb-3">
+      <span id="deleteModalSummary" class="font-bold text-on-surface"></span> will be permanently removed.
+    </p>
+    <p id="deleteModalExpenseWarning" class="text-xs text-error bg-error/10 border border-error/20 rounded-lg px-3 py-2 mb-5" style="display:none;">
+      This will also delete its linked expense from your Expenses.
+    </p>
+    <div class="flex gap-3">
+      <button type="button" onclick="closeDeleteModal()" class="flex-1 py-2.5 rounded-xl border border-outline-variant text-on-surface-variant hover:bg-surface-container-high transition-all font-bold text-sm">Cancel</button>
+      <button type="button" onclick="proceedDelete()" class="flex-1 bg-red-500/90 text-white py-2.5 rounded-xl font-bold hover:bg-red-500 transition-all text-sm">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let balancesData = { active: [], history: [] };
+
+function fmt(v) { return '₹' + Number(v).toLocaleString('en-IN', { maximumFractionDigits: 0 }); }
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str == null ? '' : String(str);
+  return div.innerHTML;
+}
+
+// Two-letter initials + a deterministic accent color per name, so avatars
+// carry a bit of identity instead of being identical grey circles.
+const AVATAR_PALETTE = [
+  { bg: 'rgba(78,222,163,.14)',  fg: '#4edea3' },
+  { bg: 'rgba(173,198,255,.14)', fg: '#adc6ff' },
+  { bg: 'rgba(250,204,21,.14)',  fg: '#facc15' },
+  { bg: 'rgba(248,113,113,.14)', fg: '#f87171' },
+  { bg: 'rgba(192,132,252,.14)', fg: '#c084fc' },
+  { bg: 'rgba(94,234,212,.14)',  fg: '#5eead4' },
+];
+function getInitials(name) {
+  const parts = (name || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+function getAvatarStyle(name) {
+  let hash = 0;
+  for (let i = 0; i < (name || '').length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  const c = AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
+  return 'background:' + c.bg + ';color:' + c.fg + ';';
+}
+function avatarHtml(name) {
+  return '<span class="avatar-chip" style="' + getAvatarStyle(name) + '">' + escapeHtml(getInitials(name)) + '</span>';
+}
+
+// ── Load + render everything from one JSON source of truth ─────────────
+function loadBalances() {
+  fetch('/api/settlements/data')
+    .then(r => r.json())
+    .then(data => {
+      applyBalancesData(data);
+    })
+    .catch(() => {
+      document.getElementById('openBalancesList').innerHTML = '<p class="text-xs text-error py-2">Couldn\'t load balances — try reloading the page.</p>';
+    });
+}
+
+// Single place that reflects a fresh balances payload into the DOM —
+// used both on initial load and after every mutation, so the "Link to
+// Expense" picker always reflects the current set of expenses (including
+// any just created via an "I owe them" + Counts as expense balance).
+function applyBalancesData(data) {
+  balancesData = data;
+  applySummary(data);
+  renderOpenBalances();
+  renderSettledHistory();
+  populateLinkedExpenseSelects();
+  populateCategorySelect('addExpenseCategory');
+}
+
+function applySummary(data) {
+  document.getElementById('statOwedToYou').textContent = data.owed_to_you > 0 ? '+' + fmt(data.owed_to_you) : '₹0';
+  document.getElementById('statYouOwe').textContent = data.you_owe > 0 ? '-' + fmt(data.you_owe) : '₹0';
+  const netEl = document.getElementById('statNetPosition');
+  netEl.textContent = data.net_position === 0 ? '₹0' : (data.net_position > 0 ? '+' : '') + fmt(data.net_position);
+  netEl.className = 'text-[32px] font-extrabold leading-none tracking-tight ' + (data.net_position >= 0 ? 'text-primary' : 'text-error');
+}
+
+let openBalancesShown = 8;
+const OPEN_BALANCES_PAGE_SIZE = 8;
+
+function renderOpenBalances() {
+  const list = document.getElementById('openBalancesList');
+  const header = document.getElementById('balanceHeaderRow');
+  const searchWrap = document.getElementById('balanceSearchWrap');
+  const noResults = document.getElementById('noSearchResults');
+  const loadMoreWrap = document.getElementById('loadMoreWrap');
+  const all = balancesData.active || [];
+
+  searchWrap.style.display = all.length ? 'block' : 'none';
+
+  if (!all.length) {
+    header.style.display = 'none';
+    loadMoreWrap.classList.add('hidden');
+    list.innerHTML = '<div class="text-center py-14">' +
+      '<span class="text-3xl mb-2 block">🎉</span>' +
+      '<p class="text-sm font-bold text-on-surface mb-1">Everything\'s settled.</p>' +
+      '<p class="text-xs text-on-surface-variant">No pending balances. Split your next expense with friends to start tracking.</p>' +
+      '</div>';
+    noResults.classList.add('hidden');
+    return;
+  }
+  header.style.display = 'grid';
+
+  const q = (document.getElementById('peopleSearch')?.value || '').trim().toLowerCase();
+  const filtered = q ? all.filter(b => b.peer_name.toLowerCase().includes(q)) : all;
+
+  noResults.classList.toggle('hidden', filtered.length > 0);
+  if (!filtered.length) { list.innerHTML = ''; loadMoreWrap.classList.add('hidden'); return; }
+
+  // Long histories stay scannable via a simple "show more" rather than a
+  // full pager — the card still hugs its content when there are only a
+  // handful of balances, and grows as more get added.
+  const visible = filtered.slice(0, openBalancesShown);
+  const remaining = filtered.length - visible.length;
+
+  list.innerHTML = visible.map(b => {
+    const isOwedToYou = b.amount > 0;
+    const badgeClass = isOwedToYou ? 'badge-owed-to-you' : 'badge-you-owe';
+    const badgeText = (isOwedToYou ? 'Receivable ' : 'Payable ') + fmt(Math.abs(b.amount));
+    let pendingText;
+    if (!b.days_pending || b.days_pending <= 0) pendingText = 'Today';
+    else if (b.days_pending === 1) pendingText = '1 day ago';
+    else pendingText = b.days_pending + ' days ago';
+
+    return '<div class="balance-row balance-grid-cols">' +
+      '<span class="flex items-center gap-2.5 min-w-0">' +
+        avatarHtml(b.peer_name) +
+        '<span class="text-sm font-semibold text-on-surface truncate">' + escapeHtml(b.peer_name) + '</span>' +
+      '</span>' +
+      '<span><span class="status-badge ' + badgeClass + '">' + badgeText + '</span></span>' +
+      '<span class="text-xs text-on-surface-variant/80 truncate flex items-center gap-1" title="' + escapeHtml(b.reason || '') + '">' +
+        (b.linked_expense_id ? '<span class="material-symbols-outlined text-secondary/70 flex-shrink-0" style="font-size:13px;" title="Linked to an expense">link</span>' : '') +
+        (b.reason ? escapeHtml(b.reason) : '<span class="text-on-surface-variant/40">—</span>') +
+      '</span>' +
+      '<span class="balance-meta" title="Balance date: ' + escapeHtml(b.balance_date_display) + '">' + escapeHtml(pendingText) + '</span>' +
+      '<span><button type="button" class="text-xs font-bold text-primary border border-primary/25 bg-primary/8 px-3 py-1.5 rounded-lg hover:bg-primary/16 active:scale-[.97] transition-all" data-id="' + b.id + '" data-name="' + escapeHtml(b.peer_name) + '" title="Mark this balance as settled" onclick="handleSettleClick(this)">Settle</button></span>' +
+      '<span class="flex justify-end">' +
+        '<button type="button" class="row-menu-btn" data-id="' + b.id + '" data-type="open" data-name="' + escapeHtml(b.peer_name) + '" data-amount="' + Math.abs(b.amount) + '" onclick="openRowMenu(event, this)" title="More actions" aria-label="Balance actions">' +
+          '<span class="material-symbols-outlined" style="font-size:16px;">more_vert</span>' +
+        '</button>' +
+      '</span>' +
+    '</div>';
+  }).join('');
+
+  if (remaining > 0) {
+    loadMoreWrap.classList.remove('hidden');
+    loadMoreWrap.innerHTML = '<button type="button" class="load-more-btn text-xs font-bold text-on-surface-variant border border-outline-variant px-4 py-2 rounded-lg hover:bg-surface-container-high hover:text-on-surface transition-colors" onclick="showMoreBalances()">Show ' + Math.min(remaining, OPEN_BALANCES_PAGE_SIZE) + ' more (' + remaining + ' left)</button>';
+  } else {
+    loadMoreWrap.classList.add('hidden');
+  }
+}
+function showMoreBalances() {
+  openBalancesShown += OPEN_BALANCES_PAGE_SIZE;
+  renderOpenBalances();
+}
+
+function renderSettledHistory() {
+  const list = document.getElementById('settledHistoryList');
+  const header = document.getElementById('settledHeaderRow');
+  const items = balancesData.history || [];
+  if (!items.length) {
+    header.style.display = 'none';
+    list.innerHTML = '<div class="flex flex-col items-center justify-center text-center py-12">' +
+      '<p class="text-sm font-semibold text-on-surface mb-1">No settled balances yet.</p>' +
+      '<p class="text-xs text-on-surface-variant">Balances you settle will appear here.</p>' +
+      '</div>';
+    return;
+  }
+  header.style.display = 'grid';
+  list.innerHTML = items.map(h => {
+    return '<div class="balance-row settled-grid-cols" style="opacity:.75;">' +
+      '<span class="flex items-center gap-2.5 min-w-0">' +
+        avatarHtml(h.peer_name) +
+        '<span class="text-sm font-semibold text-on-surface-variant truncate">' + escapeHtml(h.peer_name) + '</span>' +
+      '</span>' +
+      '<span><span class="status-badge badge-settled">' + fmt(h.amount) + ' settled</span></span>' +
+      '<span class="text-xs text-on-surface-variant/80 truncate flex items-center gap-1">' +
+        (h.linked_expense_id ? '<span class="material-symbols-outlined text-secondary/70 flex-shrink-0" style="font-size:13px;" title="Linked to an expense">link</span>' : '') +
+        (h.reason ? escapeHtml(h.reason) : '<span class="text-on-surface-variant/40">—</span>') +
+      '</span>' +
+      '<span class="balance-meta text-right">' + escapeHtml(h.settled_display) + '</span>' +
+      '<span class="flex justify-end">' +
+        '<button type="button" class="row-menu-btn" data-id="' + h.id + '" data-type="settled" data-name="' + escapeHtml(h.peer_name) + '" data-amount="' + Math.abs(h.amount) + '" onclick="openRowMenu(event, this)" title="More actions" aria-label="Settled balance actions">' +
+          '<span class="material-symbols-outlined" style="font-size:16px;">more_vert</span>' +
+        '</button>' +
+      '</span>' +
+    '</div>';
+  }).join('');
+}
+
+// ── Row kebab menu — single shared floating menu, positioned via JS ──────
+// Escapes the overflow-x-auto card entirely (see the .row-menu CSS comment)
+// and flips to open upward when there isn't room below the button, so
+// options are never clipped or require scrolling to reach.
+let currentMenuBtn = null;
+
+function openRowMenu(e, btn) {
+  e.preventDefault(); e.stopPropagation();
+  const menu = document.getElementById('floatingRowMenu');
+  const reopeningSameBtn = menu.classList.contains('open') && currentMenuBtn === btn;
+  closeFloatingMenu();
+  if (reopeningSameBtn) return;
+
+  const type = btn.dataset.type; // 'open' | 'settled'
+  const id = btn.dataset.id;
+  const name = btn.dataset.name || '';
+  const amountText = btn.dataset.amount ? fmt(parseFloat(btn.dataset.amount)) : '';
+
+  let html = '<button type="button" data-id="' + id + '" title="Edit this balance" onclick="closeFloatingMenu(); handleEditClick(this)"><span class="material-symbols-outlined" style="font-size:14px;">edit</span> Edit</button>';
+  if (type === 'open') {
+    html += '<button type="button" data-id="' + id + '" data-name="' + escapeHtml(name) + '" title="Mark this balance as settled" onclick="closeFloatingMenu(); handleSettleClick(this)"><span class="material-symbols-outlined" style="font-size:14px;">check_circle</span> Settle</button>';
+  } else {
+    html += '<button type="button" data-id="' + id + '" data-name="' + escapeHtml(name) + '" title="Move back to Open Balances" onclick="closeFloatingMenu(); handleReopenClick(this)"><span class="material-symbols-outlined" style="font-size:14px;">restart_alt</span> Reopen balance</button>';
+  }
+  html += '<button type="button" class="danger" data-id="' + id + '" data-summary="' + escapeHtml(name + ' — ' + amountText) + '" title="Delete this balance" onclick="closeFloatingMenu(); handleDeleteClick(this)"><span class="material-symbols-outlined" style="font-size:14px;">delete</span> Delete</button>';
+
+  menu.innerHTML = html;
+  currentMenuBtn = btn;
+  btn.classList.add('menu-open');
+
+  // Measure first (off-screen-safe: opacity is 0 until positioned via the
+  // .open class transition), then decide up vs down based on real space.
+  menu.classList.add('open');
+  const btnRect = btn.getBoundingClientRect();
+  const menuRect = menu.getBoundingClientRect();
+  const gap = 6;
+  const opensUpward = (btnRect.bottom + gap + menuRect.height) > window.innerHeight;
+  const top = opensUpward ? (btnRect.top - gap - menuRect.height) : (btnRect.bottom + gap);
+  const left = Math.max(8, Math.min(btnRect.right - menuRect.width, window.innerWidth - menuRect.width - 8));
+  menu.style.top = top + 'px';
+  menu.style.left = left + 'px';
+}
+
+function closeFloatingMenu() {
+  const menu = document.getElementById('floatingRowMenu');
+  menu.classList.remove('open');
+  if (currentMenuBtn) currentMenuBtn.classList.remove('menu-open');
+  currentMenuBtn = null;
+}
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('floatingRowMenu');
+  if (!menu.contains(e.target) && !e.target.closest('.row-menu-btn')) closeFloatingMenu();
+});
+// Scrolling (the page, or the horizontally-scrollable card) would leave a
+// fixed-position menu visually detached from its button, so just close it —
+// simpler and more predictable than continuously repositioning.
+window.addEventListener('scroll', closeFloatingMenu, true);
+window.addEventListener('resize', closeFloatingMenu);
+
+function findBalance(id) {
+  return (balancesData.active || []).find(b => b.id === id) ||
+         (balancesData.history || []).find(b => b.id === id);
+}
+
+// ── Add Balance ──────────────────────────────────────────────────────────
+function clearFieldError(inputId, errorId) {
+  document.getElementById(inputId)?.classList.remove('field-error');
+  const err = document.getElementById(errorId);
+  if (err) { err.textContent = ''; err.classList.remove('show'); }
+}
+function setFieldError(inputId, errorId, message) {
+  document.getElementById(inputId)?.classList.add('field-error');
+  const err = document.getElementById(errorId);
+  if (err) { err.textContent = message; err.classList.add('show'); }
+}
+
+function submitAddBalance(e) {
+  e.preventDefault();
+  clearFieldError('addAmount', 'addAmountError');
+  const form = e.target;
+  const fd = new FormData(form);
+  fetch('/settlements', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+    .then(r => r.json().then(data => ({ ok: r.ok, data })))
+    .then(({ ok, data }) => {
+      if (ok && data.success) {
+        applyBalancesData(data.data);
+        showToast(data.message, 'success');
+        form.reset();
+        setDefaultAddDate();
+        updateAddDirectionUI();
+      } else {
+        setFieldError('addAmount', 'addAmountError', data.error || 'Something went wrong.');
+        showToast(data.error || 'Something went wrong.', 'error');
+      }
+    })
+    .catch(() => showToast("Couldn't reach the server — try again.", 'error'));
+  return false;
+}
+
+// ── Settle ───────────────────────────────────────────────────────────────
+let pendingSettleId = null;
+function handleSettleClick(btn) {
+  pendingSettleId = parseInt(btn.dataset.id, 10);
+  document.getElementById('settleModalName').textContent = btn.dataset.name;
+  document.getElementById('settleModal').classList.add('open');
+}
+function closeSettleModal() { document.getElementById('settleModal').classList.remove('open'); pendingSettleId = null; }
+function proceedSettle() {
+  if (pendingSettleId === null) return;
+  fetch('/settle/' + pendingSettleId, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+    .then(r => r.json().then(data => ({ ok: r.ok, data })))
+    .then(({ ok, data }) => {
+      if (ok && data.success) {
+        applyBalancesData(data.data);
+        showToast(data.message, 'success');
+      } else {
+        showToast(data.error || 'Something went wrong.', 'error');
+      }
+      closeSettleModal();
+    })
+    .catch(() => { showToast("Couldn't reach the server — try again.", 'error'); closeSettleModal(); });
+}
+
+// ── Reopen (settled → open) ─────────────────────────────────────────────
+let pendingReopenId = null;
+function handleReopenClick(btn) {
+  closeFloatingMenu();
+  pendingReopenId = parseInt(btn.dataset.id, 10);
+  document.getElementById('reopenModalName').textContent = btn.dataset.name;
+  document.getElementById('reopenModal').classList.add('open');
+}
+function closeReopenModal() { document.getElementById('reopenModal').classList.remove('open'); pendingReopenId = null; }
+function proceedReopen() {
+  if (pendingReopenId === null) return;
+  fetch('/api/settlements/' + pendingReopenId + '/reopen', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+    .then(r => r.json().then(data => ({ ok: r.ok, data })))
+    .then(({ ok, data }) => {
+      if (ok && data.success) {
+        applyBalancesData(data.data);
+        showToast(data.message, 'success');
+      } else {
+        showToast(data.error || 'Something went wrong.', 'error');
+      }
+      closeReopenModal();
+    })
+    .catch(() => { showToast("Couldn't reach the server — try again.", 'error'); closeReopenModal(); });
+}
+
+// ── Edit ─────────────────────────────────────────────────────────────────
+let editingId = null;
+let editingStatus = 'active';
+function handleEditClick(btn) {
+  closeFloatingMenu();
+  const b = findBalance(parseInt(btn.dataset.id, 10));
+  if (!b) return;
+  editingId = b.id;
+  editingStatus = b.status || 'active';
+  clearFieldError('editAmount', 'editAmountError');
+  document.getElementById('editPeerName').value = b.peer_name;
+  document.getElementById('editAmount').value = Math.abs(b.amount);
+  document.getElementById('editReason').value = b.reason || '';
+  document.getElementById('editBalanceDate').value = b.balance_date;
+  document.getElementById('editCreatedDisplay').textContent = b.created_display;
+  document.getElementById('editDirectionTheyOwe').checked = b.amount > 0;
+  document.getElementById('editDirectionIOwe').checked = b.amount <= 0;
+  document.getElementById('editCountsAsExpense').checked = !!b.counts_as_expense;
+  populateLinkedExpenseSelects();
+  populateCategorySelect('editExpenseCategory', b.expense_category);
+  document.getElementById('editLinkedExpense').value = b.linked_expense_id || '';
+  document.getElementById('editExpenseCategoryWrap').style.display = b.counts_as_expense ? 'block' : 'none';
+  updateEditDirectionUI();
+
+  const settledWrap = document.getElementById('editSettledDateWrap');
+  if (editingStatus === 'settled') {
+    document.getElementById('editSettledDate').value = b.settled_date;
+    settledWrap.style.display = 'block';
+    document.getElementById('editPartialHint').style.display = 'none';
+  } else {
+    settledWrap.style.display = 'none';
+    document.getElementById('editPartialHint').style.display = 'block';
+  }
+
+  document.getElementById('editModal').classList.add('open');
+}
+function closeEditModal() { document.getElementById('editModal').classList.remove('open'); editingId = null; }
+
+// "Counts as expense" only ever makes sense for "I owe them" (the money
+// hasn't left your account yet). "Link to Expense" only ever makes sense
+// for "They owe me" (you already logged the full amount you spent, and
+// this balance just marks part of it as a receivable).
+function updateAddDirectionUI() {
+  const isOweThem = document.querySelector('#addBalanceForm input[name="direction"][value="owe_them"]').checked;
+  document.getElementById('addCountsAsExpenseWrap').style.display = isOweThem ? 'block' : 'none';
+  document.getElementById('addLinkedExpenseWrap').style.display = isOweThem ? 'none' : 'block';
+  if (isOweThem) {
+    document.getElementById('addLinkedExpense').value = '';
+  } else {
+    document.getElementById('addCountsAsExpense').checked = false;
+    document.getElementById('addExpenseCategoryWrap').style.display = 'none';
+  }
+}
+function updateEditDirectionUI() {
+  const isOweThem = document.getElementById('editDirectionIOwe').checked;
+  document.getElementById('editCountsAsExpenseWrap').style.display = isOweThem ? 'block' : 'none';
+  document.getElementById('editLinkedExpenseWrap').style.display = isOweThem ? 'none' : 'block';
+  if (isOweThem) {
+    document.getElementById('editLinkedExpense').value = '';
+  } else {
+    document.getElementById('editCountsAsExpense').checked = false;
+    document.getElementById('editExpenseCategoryWrap').style.display = 'none';
+  }
+}
+
+// Populate a category <select> from the categories list returned with
+// every balances fetch — same source of truth Expenses/Recurring use.
+function populateCategorySelect(selectId, selectedName) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  const cats = balancesData.categories || [];
+  sel.innerHTML = cats.map(c => '<option value="' + escapeHtml(c.name) + '">' + escapeHtml(c.icon || '') + ' ' + escapeHtml(c.name) + '</option>').join('');
+  if (selectedName) sel.value = selectedName;
+}
+
+// Populate both "Link to Expense" pickers from the recent-expenses list
+// returned alongside every balances fetch, preserving whichever option is
+// currently selected (if it's still in the list) across a refresh.
+function populateLinkedExpenseSelects() {
+  const options = (balancesData.recent_expenses || [])
+    .map(x => '<option value="' + x.id + '">' + escapeHtml(x.label) + '</option>').join('');
+  ['addLinkedExpense', 'editLinkedExpense'].forEach(selId => {
+    const sel = document.getElementById(selId);
+    if (!sel) return;
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">No linked expense</option>' + options;
+    if (prev) sel.value = prev;
+  });
+}
+
+function submitEditBalance(e) {
+  e.preventDefault();
+  clearFieldError('editAmount', 'editAmountError');
+  if (editingId === null) return false;
+  const direction = document.getElementById('editDirectionIOwe').checked ? 'owe_them' : 'they_owe_me';
+  const fd = new FormData();
+  fd.append('peer_name', document.getElementById('editPeerName').value);
+  fd.append('direction', direction);
+  fd.append('amount', document.getElementById('editAmount').value);
+  fd.append('reason', document.getElementById('editReason').value);
+  fd.append('balance_date', document.getElementById('editBalanceDate').value);
+  if (direction === 'owe_them' && document.getElementById('editCountsAsExpense').checked) {
+    fd.append('counts_as_expense', 'on');
+    fd.append('expense_category', document.getElementById('editExpenseCategory').value);
+  }
+  if (direction === 'they_owe_me') {
+    fd.append('linked_expense_id', document.getElementById('editLinkedExpense').value);
+  }
+  if (editingStatus === 'settled') {
+    fd.append('settled_date', document.getElementById('editSettledDate').value);
+  }
+  fetch('/api/settlements/' + editingId + '/edit', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+    .then(r => r.json().then(data => ({ ok: r.ok, data })))
+    .then(({ ok, data }) => {
+      if (ok && data.success) {
+        applyBalancesData(data.data);
+        showToast(data.message, 'success');
+        closeEditModal();
+      } else {
+        setFieldError('editAmount', 'editAmountError', data.error || 'Something went wrong.');
+      }
+    })
+    .catch(() => showToast("Couldn't reach the server — try again.", 'error'));
+  return false;
+}
+
+// ── Delete ───────────────────────────────────────────────────────────────
+let deletingId = null;
+function handleDeleteClick(btn) {
+  closeFloatingMenu();
+  deletingId = parseInt(btn.dataset.id, 10);
+  const b = findBalance(deletingId);
+  const summaryEl = document.getElementById('deleteModalSummary');
+  const warnEl = document.getElementById('deleteModalExpenseWarning');
+  summaryEl.textContent = btn.dataset.summary;
+  if (b && b.counts_as_expense && b.linked_expense_id) {
+    warnEl.style.display = 'block';
+  } else {
+    warnEl.style.display = 'none';
+  }
+  document.getElementById('deleteModal').classList.add('open');
+}
+function closeDeleteModal() { document.getElementById('deleteModal').classList.remove('open'); deletingId = null; }
+function proceedDelete() {
+  if (deletingId === null) return;
+  fetch('/api/settlements/' + deletingId + '/delete', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+    .then(r => r.json().then(data => ({ ok: r.ok, data })))
+    .then(({ ok, data }) => {
+      if (ok && data.success) {
+        applyBalancesData(data.data);
+        showToast(data.message, 'success');
+      } else {
+        showToast(data.error || 'Something went wrong.', 'error');
+      }
+      closeDeleteModal();
+    })
+    .catch(() => { showToast("Couldn't reach the server — try again.", 'error'); closeDeleteModal(); });
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeSettleModal(); closeEditModal(); closeDeleteModal(); closeReopenModal(); closeFloatingMenu(); }
+});
+
+/* ── Toast ── */
+function showToast(message, type) {
+  const toast = document.getElementById('toast');
+  const icon  = document.getElementById('toastIcon');
+  document.getElementById('toastMsg').textContent = message;
+  icon.textContent = type === 'error' ? 'error' : 'check_circle';
+  icon.className = 'material-symbols-outlined ' + (type === 'error' ? 'text-error' : 'text-primary');
+  icon.style.fontSize = '16px';
+  toast.style.opacity = '1';
+  setTimeout(() => { toast.style.opacity = '0'; }, 3200);
+}
+
+loadBalances();
+setDefaultAddDate();
+function setDefaultAddDate() {
+  const el = document.getElementById('addBalanceDate');
+  if (el) el.value = new Date().toISOString().slice(0, 10);
+}
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+      showToast("{{ message }}", "{{ 'error' if category == 'error' else 'success' }}");
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+</script>
+</body>
+</html>

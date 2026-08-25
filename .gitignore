@@ -1,0 +1,36 @@
+# Environment variables and secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Python / Virtual Environment
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Database & SQLite local data files
+*.sqlite
+*.sqlite3
+*.db
+
+# OS specific files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs & temp files
+*.log
+scratch/

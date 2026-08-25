@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>{{ 'Edit Goal' if goal is defined else 'New Goal' }} | Finora</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/npm/geist@1.3.0/dist/fonts/geist.min.css" rel="stylesheet"/>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          "surface-dim":            "#10141a",
+          "background":             "#10141a",
+          "surface-container-low":  "#181c22",
+          "on-primary":             "#003824",
+          "primary-container":      "#10b981",
+          "surface-container":      "#1c2026",
+          "on-primary-container":   "#00422b",
+          "primary":                "#4edea3",
+          "on-surface":             "#dfe2eb",
+          "on-surface-variant":     "#bbcabf",
+          "surface-variant":        "#31353c",
+          "outline-variant":        "#3c4a42",
+          "outline":                "#86948a",
+          "surface":                "#10141a",
+          "surface-container-high": "#262a31",
+          "secondary":              "#adc6ff",
+          "error":                  "#f87171",
+        },
+        fontFamily: { sans: ["Geist", "Inter", "sans-serif"], display: ["Geist", "sans-serif"] },
+      },
+    },
+  }
+</script>
+<style>
+  html { color-scheme: dark; }
+  body { font-family:'Geist',sans-serif; background:#10141a; color:#dfe2eb; -webkit-font-smoothing:antialiased; }
+  .material-symbols-outlined { font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; }
+  .nav-link { display:flex; align-items:center; gap:10px; padding:9px 14px; border-radius:10px; color:#bbcabf; text-decoration:none; font-size:14px; font-weight:500; transition:background .15s,color .15s; }
+  .nav-link:hover  { background:#1c2026; color:#dfe2eb; }
+  .nav-link.active { background:#1c2026; color:#4edea3; }
+  ::-webkit-scrollbar { width:5px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:#3c4a42; border-radius:3px; }
+
+  input[type="date"]::-webkit-calendar-picker-indicator { filter:invert(.6); cursor:pointer; }
+  .inp {
+    background:#10141a !important; border:1px solid #3c4a42; border-radius:10px;
+    padding:10px 14px; color:#dfe2eb !important; font-size:14px; transition:border-color .15s;
+    width:100%; color-scheme:dark; -webkit-appearance:none; appearance:none;
+  }
+  .inp:focus { outline:none; border-color:#4edea3; box-shadow:0 0 0 3px rgba(78,222,163,.12); }
+  .inp::placeholder { color:#86948a; }
+  textarea.inp { resize:vertical; min-height:72px; font-family:inherit; }
+
+  .icon-btn { width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:18px; background:#10141a; border:1.5px solid #3c4a42; cursor:pointer; transition:all .15s; }
+  .icon-btn:hover { border-color:#86948a; }
+  .icon-btn.selected { border-color:#4edea3; background:rgba(78,222,163,.1); }
+
+  .color-btn { width:28px; height:28px; border-radius:50%; cursor:pointer; border:2px solid transparent; transition:all .15s; }
+  .color-btn.selected { border-color:#dfe2eb; transform:scale(1.15); }
+
+  .preview-card { background:#1c2026; border:1px solid #3c4a42; border-radius:16px; padding:22px; }
+  .goal-card-preview { background:#1c2026; border:1px solid #3c4a42; border-radius:16px; padding:22px; }
+  .preview-icon-tile { width:38px; height:38px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; transition:background .2s; }
+  .prog-track { height:6px; background:#262a31; border-radius:99px; overflow:hidden; }
+  .prog-fill { height:6px; border-radius:99px; transition:width .4s ease, background .2s; }
+</style>
+</head>
+<body class="bg-surface text-on-surface min-h-screen">
+
+<div id="toast" class="fixed bottom-6 right-6 bg-surface-container-high border border-outline-variant text-on-surface text-sm font-semibold px-5 py-3 rounded-xl shadow-2xl z-50 flex items-center gap-2.5 opacity-0 pointer-events-none transition-opacity duration-200">
+  <span class="material-symbols-outlined text-primary" id="toastIcon" style="font-size:16px;">check_circle</span>
+  <span id="toastMsg"></span>
+</div>
+
+<div class="flex min-h-screen">
+  {% include 'partials/sidebar.html' %}
+
+  <main class="flex-1 overflow-y-auto min-w-0">
+    {% include 'partials/mobile_topbar.html' %}
+    <div class="max-w-6xl mx-auto px-7 py-8">
+
+      <div class="flex items-center justify-between mb-7 flex-wrap gap-4">
+        <div>
+          <h1 class="text-[22px] font-extrabold tracking-tight leading-tight">{{ 'Edit Goal' if goal is defined else 'New Savings Goal' }}</h1>
+          <p class="text-on-surface-variant text-sm mt-0.5">{{ 'Update your goal details.' if goal is defined else 'Define a target and start tracking your progress.' }}</p>
+        </div>
+        <a href="{{ '/goals/' + goal.id|string if goal is defined else '/goals' }}"
+          class="flex items-center gap-2 border border-outline-variant text-on-surface-variant px-4 py-2.5 rounded-xl font-bold hover:bg-surface-container-high transition-all text-sm">
+          <span class="material-symbols-outlined" style="font-size:17px;">arrow_back</span> Back
+        </a>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-6 items-start">
+
+        <!-- ── Form ── -->
+        <div class="bg-surface-container border border-outline-variant rounded-2xl overflow-hidden">
+          <form action="{{ '/edit-goal/' + goal.id|string if goal is defined else '/add-goal' }}" method="POST" id="goalForm">
+
+            <div class="p-6 border-b border-outline-variant">
+              <div class="flex items-center gap-2 mb-5">
+                <span class="material-symbols-outlined text-primary" style="font-size:18px;">flag</span>
+                <h2 class="text-sm font-extrabold">Goal Basics</h2>
+              </div>
+              <div class="flex flex-col gap-5">
+                <div>
+                  <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Goal Name</label>
+                  <input type="text" name="goal_name" id="fGoalName" required placeholder="e.g. Emergency Fund, New Laptop, Trip to Bali"
+                    class="inp" style="font-size:15px;" value="{{ goal.name if goal is defined else '' }}">
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Target Amount (₹)</label>
+                    <input type="number" name="target_amount" id="fTarget" step="0.01" min="0" required placeholder="0.00" class="inp"
+                      style="font-size:19px; font-weight:800; border-color:rgba(78,222,163,.35);"
+                      value="{{ goal.target|int if goal is defined else '' }}">
+                  </div>
+                  {% if goal is not defined %}
+                  <div>
+                    <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Already Saved (₹)</label>
+                    <input type="number" name="current_amount" id="fCurrent" step="0.01" min="0" placeholder="0.00" class="inp">
+                    <p class="text-xs text-on-surface-variant/60 mt-1.5">Enter 0 if starting from scratch.</p>
+                  </div>
+                  {% else %}
+                  <div>
+                    <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Currently Reserved</label>
+                    <div class="inp" style="display:flex;align-items:center;color:#86948a;">₹{{ "{:,.0f}".format(goal.current) }} (read-only)</div>
+                    <p class="text-xs text-on-surface-variant/60 mt-1.5">Use Deposit/Withdraw on the goal page to change this.</p>
+                  </div>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+
+            <div class="p-6 border-b border-outline-variant">
+              <div class="flex items-center gap-2 mb-5">
+                <span class="material-symbols-outlined text-secondary" style="font-size:18px;">calendar_month</span>
+                <h2 class="text-sm font-extrabold">Timeline &amp; Notes</h2>
+              </div>
+              <div class="flex flex-col gap-5">
+                <div>
+                  <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">
+                    Target Date <span class="normal-case font-normal text-on-surface-variant/60">(optional)</span>
+                  </label>
+                  <input type="date" name="target_date" id="fDate" class="inp" style="width:auto;" value="{{ goal.target_date if goal is defined else '' }}">
+                  <p class="text-xs text-on-surface-variant/60 mt-1.5">Used to calculate how much you need to save per month. Leave blank if there's no deadline.</p>
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">
+                    Notes <span class="normal-case font-normal text-on-surface-variant/60">(optional)</span>
+                  </label>
+                  <textarea name="description" rows="2" placeholder="Add context, milestones, or motivation…" class="inp">{{ goal.description if goal is defined else '' }}</textarea>
+                </div>
+              </div>
+            </div>
+
+            <div class="p-6">
+              <div class="flex items-center gap-2 mb-5">
+                <span class="material-symbols-outlined text-secondary" style="font-size:18px;">palette</span>
+                <h2 class="text-sm font-extrabold">Icon &amp; Color</h2>
+              </div>
+              <div class="flex flex-col gap-4">
+                <div>
+                  <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-2">Icon</label>
+                  <div class="flex flex-wrap gap-2" id="iconPicker">
+                    {% for ic in icon_choices %}
+                    <button type="button" class="icon-btn {% if (goal.icon if goal is defined else '🎯') == ic %}selected{% endif %}" data-icon="{{ ic }}" onclick="selectIcon('{{ ic }}')">{{ ic }}</button>
+                    {% endfor %}
+                  </div>
+                  <input type="hidden" name="icon" id="fIcon" value="{{ goal.icon if goal is defined else icon_choices[0] }}">
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-2">Color</label>
+                  <div class="flex flex-wrap gap-2.5" id="colorPicker">
+                    {% for hex, label in color_choices %}
+                    <button type="button" class="color-btn {% if (goal.color if goal is defined else color_choices[0][0]) == hex %}selected{% endif %}" data-color="{{ hex }}" style="background:{{ hex }};" title="{{ label }}" onclick="selectColor('{{ hex }}')"></button>
+                    {% endfor %}
+                  </div>
+                  <input type="hidden" name="color" id="fColor" value="{{ goal.color if goal is defined else color_choices[0][0] }}">
+                </div>
+              </div>
+            </div>
+
+            <div class="px-6 py-5 bg-surface-container-high/40 flex items-center justify-end gap-6">
+              <a href="{{ '/goals/' + goal.id|string if goal is defined else '/goals' }}" class="text-on-surface-variant text-sm font-semibold hover:text-on-surface hover:underline transition-colors">Cancel</a>
+              <button type="submit" class="flex items-center gap-2 bg-primary text-on-primary py-3 px-8 rounded-xl font-extrabold hover:brightness-110 active:scale-[.98] transition-all shadow-lg shadow-primary/20 text-sm">
+                <span class="material-symbols-outlined" style="font-size:18px;">savings</span>
+                {{ 'Save Changes' if goal is defined else 'Create Goal' }}
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- ── Goal Preview ── -->
+        <div class="lg:sticky lg:top-8">
+          <p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-3">Goal Preview</p>
+
+          <!-- Empty state — shown until a name + target amount are entered -->
+          <div class="preview-card" id="pvEmptyState">
+            <div class="flex flex-col items-center text-center py-4">
+              <span class="text-3xl mb-2" id="pvEmptyIcon">🎯</span>
+              <p class="text-sm font-bold text-on-surface mb-1" id="pvEmptyName">Your Goal Name</p>
+              <p class="text-xs text-on-surface-variant leading-relaxed">Your goal preview will appear here as you fill in the details.</p>
+            </div>
+          </div>
+
+          <!-- Live mini goal-card — mirrors the real card on /goals -->
+          <div class="goal-card-preview" id="pvCardState" style="display:none;">
+            <div class="flex items-start justify-between gap-3 mb-2.5">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <div class="preview-icon-tile" id="pvIconTile"><span id="pvIcon">🎯</span></div>
+                <h3 class="font-bold text-[15px] text-on-surface leading-snug truncate" id="pvName">Your Goal Name</h3>
+              </div>
+              <span class="text-xs font-bold px-2.5 py-1 rounded-lg bg-primary/10 text-primary flex-shrink-0" id="pvStatusBadge">In Progress</span>
+            </div>
+
+            <div class="flex items-end justify-between gap-2 mb-2">
+              <div><span class="text-lg font-extrabold" id="pvCurrent">₹0</span><span class="text-sm text-on-surface-variant font-medium"> / <span id="pvTarget">₹0</span></span></div>
+              <span class="text-sm font-bold text-on-surface-variant flex-shrink-0" id="pvPercent">0%</span>
+            </div>
+
+            <div class="prog-track mb-2">
+              <div class="prog-fill" id="pvProgFill" style="width:0%;"></div>
+            </div>
+
+            <div class="flex items-center justify-between gap-2 text-xs text-on-surface-variant mb-1">
+              <span id="pvRemaining">₹0 remaining</span>
+              <span id="pvDate" style="display:none;"></span>
+            </div>
+            <p class="text-xs font-semibold text-secondary" id="pvPace" style="display:none;"></p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+function selectIcon(ic) {
+  document.getElementById('fIcon').value = ic;
+  document.querySelectorAll('#iconPicker .icon-btn').forEach(b => b.classList.toggle('selected', b.dataset.icon === ic));
+  document.getElementById('pvIcon').textContent = ic;
+  document.getElementById('pvEmptyIcon').textContent = ic;
+}
+function selectColor(hex) {
+  document.getElementById('fColor').value = hex;
+  document.querySelectorAll('#colorPicker .color-btn').forEach(b => b.classList.toggle('selected', b.dataset.color === hex));
+  document.getElementById('pvIconTile').style.background = hex + '22';
+  document.getElementById('pvProgFill').style.background = hex;
+}
+
+function updatePreview() {
+  const name = document.getElementById('fGoalName').value.trim();
+  const target = parseFloat(document.getElementById('fTarget').value) || 0;
+  const currentInput = document.getElementById('fCurrent');
+  const current = currentInput ? (parseFloat(currentInput.value) || 0) : {{ goal.current if goal is defined else 0 }};
+
+  // Empty state until there's at least a name and a target — never show
+  // fake ₹0 / ₹0 financial data as if a real goal already exists.
+  const hasMeaningfulData = name.length > 0 && target > 0;
+  document.getElementById('pvEmptyState').style.display = hasMeaningfulData ? 'none' : 'block';
+  document.getElementById('pvCardState').style.display = hasMeaningfulData ? 'block' : 'none';
+  document.getElementById('pvEmptyName').textContent = name || 'Your Goal Name';
+  if (!hasMeaningfulData) return;
+
+  document.getElementById('pvName').textContent = name;
+  document.getElementById('pvCurrent').textContent = '₹' + Math.round(current).toLocaleString('en-IN');
+  document.getElementById('pvTarget').textContent = '₹' + Math.round(target).toLocaleString('en-IN');
+
+  const remaining = Math.max(target - current, 0);
+  const pct = target > 0 ? Math.min((current / target) * 100, 100) : 0;
+  document.getElementById('pvPercent').textContent = pct.toFixed(0) + '%';
+  document.getElementById('pvProgFill').style.width = (pct > 0 ? Math.max(pct, 2) : 0) + '%';
+
+  const dateVal = document.getElementById('fDate').value;
+  const dateEl = document.getElementById('pvDate');
+  const paceEl = document.getElementById('pvPace');
+  const badgeEl = document.getElementById('pvStatusBadge');
+  const targetReached = current >= target;
+  const now = new Date();
+  let isOverdue = false;
+  let d = null;
+  if (dateVal) {
+    d = new Date(dateVal + 'T00:00:00');
+    isOverdue = !targetReached && d < now;
+  }
+
+  // Status badge — Target Reached always takes precedence over Overdue.
+  if (targetReached) {
+    badgeEl.textContent = '✔ Target Reached';
+    badgeEl.className = 'text-xs font-bold px-2.5 py-1 rounded-lg bg-amber-400/10 text-amber-400 flex-shrink-0';
+  } else if (isOverdue) {
+    badgeEl.textContent = '⚠ Overdue';
+    badgeEl.className = 'text-xs font-bold px-2.5 py-1 rounded-lg bg-error/10 text-error flex-shrink-0';
+  } else {
+    badgeEl.textContent = 'In Progress';
+    badgeEl.className = 'text-xs font-bold px-2.5 py-1 rounded-lg bg-primary/10 text-primary flex-shrink-0';
+  }
+
+  document.getElementById('pvRemaining').textContent = targetReached
+    ? '🎉 Target reached! Still reserved.'
+    : '₹' + Math.round(remaining).toLocaleString('en-IN') + ' remaining';
+
+  if (dateVal) {
+    dateEl.textContent = 'Target: ' + d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    dateEl.style.display = 'inline';
+  } else {
+    dateEl.style.display = 'none';
+  }
+
+  // Monthly pace: only when a target date exists, it's in the future,
+  // and the goal hasn't already reached its target (never shown once
+  // overdue or reached — matches the finalized product logic exactly).
+  if (dateVal && !targetReached && !isOverdue) {
+    let months = (d.getFullYear() - now.getFullYear()) * 12 + (d.getMonth() - now.getMonth());
+    if (months <= 0) months = 1;
+    const perMonth = Math.round((target - current) / months);
+    paceEl.textContent = '⚡ Need ₹' + perMonth.toLocaleString('en-IN') + '/month to reach on time';
+    paceEl.style.display = 'block';
+  } else {
+    paceEl.style.display = 'none';
+  }
+}
+
+['fGoalName', 'fTarget', 'fCurrent', 'fDate'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', updatePreview);
+});
+selectIcon(document.getElementById('fIcon').value);
+selectColor(document.getElementById('fColor').value);
+updatePreview();
+
+function showToast(message, type) {
+  const toast = document.getElementById('toast');
+  const icon  = document.getElementById('toastIcon');
+  document.getElementById('toastMsg').textContent = message;
+  icon.textContent = type === 'error' ? 'error' : 'check_circle';
+  icon.className = 'material-symbols-outlined ' + (type === 'error' ? 'text-error' : 'text-primary');
+  icon.style.fontSize = '16px';
+  toast.style.opacity = '1';
+  setTimeout(() => { toast.style.opacity = '0'; }, 3200);
+}
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+      showToast("{{ message }}", "{{ 'error' if category == 'error' else 'success' }}");
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+</script>
+</body>
+</html>

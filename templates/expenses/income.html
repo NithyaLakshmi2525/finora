@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Income | Finora</title>
+<script>
+// Runs synchronously before anything renders. If we're about to restore a
+// scroll position, hide the page immediately so the "jump to top, then
+// snap down" is never actually visible — the restore script further down
+// reveals it again once positioned. Has its own 1s safety timeout so a
+// script error elsewhere can never leave the page permanently blank.
+(function () {
+  try {
+    if (sessionStorage.getItem('incomeScrollWin') !== null || sessionStorage.getItem('incomeScrollMain') !== null) {
+      document.documentElement.style.visibility = 'hidden';
+      setTimeout(function () { document.documentElement.style.visibility = ''; }, 1000);
+    }
+  } catch (e) {}
+})();
+</script>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/npm/geist@1.3.0/dist/fonts/geist.min.css" rel="stylesheet"/>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          "surface-dim":            "#10141a",
+          "background":             "#10141a",
+          "surface-container-low":  "#181c22",
+          "on-primary":             "#003824",
+          "primary-container":      "#10b981",
+          "surface-container":      "#1c2026",
+          "on-primary-container":   "#00422b",
+          "primary":                "#4edea3",
+          "on-surface":             "#dfe2eb",
+          "on-surface-variant":     "#bbcabf",
+          "surface-variant":        "#31353c",
+          "outline-variant":        "#3c4a42",
+          "outline":                "#86948a",
+          "surface":                "#10141a",
+          "surface-container-high": "#262a31",
+          "secondary":              "#adc6ff",
+          "error":                  "#f87171",
+        },
+        fontFamily: {
+          sans:    ["Geist", "Inter", "sans-serif"],
+          display: ["Geist", "sans-serif"],
+        },
+      },
+    },
+  }
+</script>
+<style>
+  html { color-scheme: dark; }
+  body { font-family:'Geist',sans-serif; background:#10141a; color:#dfe2eb; -webkit-font-smoothing:antialiased; }
+  .material-symbols-outlined { font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; }
+
+  /* ── Sidebar nav (shared look across the app) ── */
+  .nav-link { display:flex; align-items:center; gap:10px; padding:9px 14px; border-radius:10px; color:#bbcabf; text-decoration:none; font-size:14px; font-weight:500; transition:background .15s,color .15s; }
+  .nav-link:hover  { background:#1c2026; color:#dfe2eb; }
+  .nav-link.active { background:#1c2026; color:#4edea3; }
+
+  ::-webkit-scrollbar { width:5px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:#3c4a42; border-radius:3px; }
+
+  /* ── Inputs ── */
+  input[type="date"]::-webkit-calendar-picker-indicator { filter:invert(.6); cursor:pointer; }
+  .inp {
+    background:#10141a !important;
+    border:1px solid #3c4a42;
+    border-radius:10px;
+    padding:10px 14px;
+    color:#dfe2eb !important;
+    font-size:14px;
+    transition:border-color .15s;
+    width:100%;
+    color-scheme:dark;
+    -webkit-appearance:none;
+    appearance:none;
+  }
+  .inp:focus { outline:none; border-color:#4edea3; box-shadow:0 0 0 3px rgba(78,222,163,.12); }
+  .inp::placeholder { color:#86948a; }
+  select.inp {
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2386948a' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;
+    background-position:right 14px center;
+    padding-right:38px;
+    cursor:pointer;
+  }
+  select.inp option { background:#1c2026; color:#dfe2eb; }
+  select.inp option[value=""] { color:#86948a; }
+  select.inp:has(option[value=""]:checked) { color:#86948a !important; }
+
+  /* ── Date range filter — full width & stacked on narrow mobile so each
+     field is comfortably tappable; reverts to its original inline auto-width
+     layout at sm and up. Kept in this page's own stylesheet (rather than a
+     Tailwind sm:w-auto utility) so it reliably wins over the .inp
+     width:100% rule regardless of Tailwind CDN's injection order. ── */
+  .date-range-input { width:100%; }
+  @media (min-width: 640px) {
+    .date-range-input { width:auto; }
+  }
+
+  /* ── Custom source dropdown ── */
+  .custom-dropdown { position:relative; }
+  .custom-dropdown-trigger {
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    background:#10141a; border:1px solid #3c4a42; border-radius:10px;
+    padding:10px 14px; color:#dfe2eb; font-size:14px; cursor:pointer;
+    transition:border-color .15s; width:100%; user-select:none;
+  }
+  .custom-dropdown-trigger:focus { outline:none; border-color:#4edea3; box-shadow:0 0 0 3px rgba(78,222,163,.12); }
+  .custom-dropdown-trigger.placeholder { color:#86948a; }
+  .custom-dropdown-trigger .chevron { color:#86948a; font-size:16px; transition:transform .2s; flex-shrink:0; }
+  .custom-dropdown-trigger.open .chevron { transform:rotate(180deg); }
+
+  .custom-dropdown-menu {
+    position:absolute; left:0; right:0;
+    background:#1c2026; border:1px solid #3c4a42; border-radius:10px;
+    box-shadow:0 8px 32px rgba(0,0,0,.5); z-index:200;
+    max-height:280px; overflow-y:auto; padding:4px 0;
+    /* default: open downward */
+    top:calc(100% + 4px);
+  }
+  .custom-dropdown-menu.open-up {
+    top:auto;
+    bottom:calc(100% + 4px);
+  }
+  .custom-dropdown-menu::-webkit-scrollbar { width:4px; }
+  .custom-dropdown-menu::-webkit-scrollbar-thumb { background:#3c4a42; border-radius:2px; }
+
+  .dropdown-group-label {
+    font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+    color:#86948a; padding:8px 14px 4px; pointer-events:none;
+  }
+  .dropdown-group-label:not(:first-child) { border-top:1px solid #262a31; margin-top:4px; padding-top:10px; }
+
+  .dropdown-option {
+    display:flex; align-items:center; gap:8px; padding:8px 14px;
+    font-size:14px; color:#dfe2eb; cursor:pointer; transition:background .1s;
+  }
+  .dropdown-option:hover { background:#262a31; }
+  .dropdown-option.selected { color:#4edea3; background:rgba(78,222,163,.08); }
+  .dropdown-option .opt-emoji { font-size:15px; line-height:1; }
+  .dropdown-option .opt-label { flex:1; }
+
+  /* ── Category/source badge ── */
+  .cat-badge { background:#1c2026; padding:4px 10px; border-radius:6px; font-size:12px; border:1px solid #3c4a42; font-weight:500; white-space:nowrap; }
+
+  /* ── Table ── */
+  .exp-table { width:100%; border-collapse:collapse; }
+  .exp-table thead th { text-align:left; font-size:11px; font-weight:700; color:#86948a; text-transform:uppercase; letter-spacing:.06em; padding:0 12px 12px; }
+  .exp-table tbody tr { border-top:1px solid #262a31; transition:background .12s; }
+  .exp-table tbody tr:hover { background:#181c22; }
+  .exp-table tbody tr.editing { background:rgba(78,222,163,.09); }
+  .exp-table tbody tr.editing td:first-child { box-shadow: inset 3px 0 0 0 #4edea3; }
+  .exp-table tbody td { padding:14px 12px; font-size:14px; }
+
+  /* ── Action icon buttons ── */
+  .act-btn { display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:8px; border:1px solid transparent; cursor:pointer; transition:all .15s; text-decoration:none; }
+  .act-btn:hover { transform:scale(1.08); }
+  .act-btn:active { transform:scale(0.94); }
+  .act-edit   { color:#adc6ff; border-color:rgba(173,198,255,.18); background:rgba(173,198,255,.06); }
+  .act-edit:hover   { background:rgba(173,198,255,.16); }
+  .act-delete { color:#f87171; border-color:rgba(248,113,113,.18); background:rgba(248,113,113,.06); }
+  .act-delete:hover { background:rgba(248,113,113,.16); }
+
+  /* ── Modal overlay (delete confirm) ── */
+  .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.78); backdrop-filter:blur(6px); align-items:center; justify-content:center; z-index:1000; }
+  .modal-overlay.open { display:flex; }
+</style>
+</head>
+<body class="bg-surface text-on-surface min-h-screen">
+
+<!-- ═══════════════════ TOAST ═══════════════════ -->
+<div id="toast"
+  class="fixed bottom-6 right-6 bg-surface-container-high border border-outline-variant text-on-surface text-sm font-semibold px-5 py-3 rounded-xl shadow-2xl z-50 flex items-center gap-2.5 opacity-0 pointer-events-none transition-opacity duration-200">
+  <span class="material-symbols-outlined text-primary" id="toastIcon" style="font-size:16px;">check_circle</span>
+  <span id="toastMsg"></span>
+</div>
+
+<div class="flex min-h-screen">
+
+  {% include 'partials/sidebar.html' %}
+
+  <!-- ═══════════════════ MAIN ═══════════════════ -->
+  <main class="flex-1 overflow-y-auto min-w-0">
+    {% include 'partials/mobile_topbar.html' %}
+    <div class="max-w-7xl mx-auto px-7 py-8">
+
+      <!-- ── Page Header ── -->
+      <div class="flex items-center justify-between mb-7 flex-wrap gap-4">
+        <div>
+          <h1 class="text-[22px] font-extrabold tracking-tight leading-tight">Income</h1>
+          <p class="text-on-surface-variant text-sm mt-0.5">Track all your income sources in one place.</p>
+        </div>
+      </div>
+
+      <!-- ── Summary Cards ── -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <div class="bg-surface-container border border-outline-variant rounded-2xl p-5">
+          <p class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Total Income</p>
+          <p class="text-[26px] font-extrabold text-primary leading-none">₹{{ "{:,.0f}".format(total_income) }}</p>
+          <p class="text-xs text-on-surface-variant mt-2">Across {{ income_count }} entr{{ 'y' if income_count == 1 else 'ies' }}</p>
+        </div>
+        <div class="bg-surface-container border border-outline-variant rounded-2xl p-5">
+          <p class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Average Entry</p>
+          <p class="text-[26px] font-extrabold leading-none">₹{{ "{:,.0f}".format(avg_income) }}</p>
+          <p class="text-xs text-on-surface-variant mt-2">Per logged income</p>
+        </div>
+        <div class="bg-surface-container border border-outline-variant rounded-2xl p-5">
+          <p class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Top Source</p>
+          {% if top_source %}
+          <p class="text-[22px] font-extrabold text-secondary leading-none">{{ top_source }}</p>
+          <p class="text-xs text-on-surface-variant mt-2">₹{{ "{:,.0f}".format(top_source_amount) }} total</p>
+          {% else %}
+          <p class="text-[22px] font-extrabold leading-none text-on-surface-variant/40">—</p>
+          <p class="text-xs text-on-surface-variant mt-2">No data yet</p>
+          {% endif %}
+        </div>
+      </div>
+      <p class="text-xs text-on-surface-variant/60 mb-6 -mt-3">Totals reflect your all-time data, not just the filtered rows below.</p>
+
+      <!-- ── Add / Edit Form ── -->
+      {% set all_sources = [
+        ('Salary', '💼'), ('Freelance', '💻'), ('Business', '🏢'), ('Bonus', '💸'),
+        ('Scholarship', '🎓'), ('Family Support', '👨‍👩‍👧'), ('Investments', '📈'),
+        ('Bank Interest', '🏦'), ('Rental Income', '🏠'), ('Gift', '🎁'),
+        ('Cashback', '💰'), ('Refund', '🔄'), ('Loan Received', '💵'), ('Other', '📋')
+      ] %}
+      <div class="bg-surface-container border border-outline-variant rounded-2xl p-5 mb-6">
+        {% if edit_entry is defined and edit_entry %}
+          <h2 class="text-base font-extrabold mb-0.5">Edit Income</h2>
+          <p class="text-xs text-on-surface-variant mb-4">{{ edit_entry[2] }} • ₹{{ "{:,.0f}".format(edit_entry[4]) }} • {{ edit_entry[5] }}</p>
+          <form action="/edit-income/{{ edit_entry[0] }}" method="POST" id="incomeForm">
+        {% else %}
+          <h2 class="text-base font-extrabold mb-4">Add Income</h2>
+          <form action="/income" method="POST" id="incomeForm">
+        {% endif %}
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Amount (₹)</label>
+              <input type="number" name="amount" step="0.01" min="0" required placeholder="0.00" class="inp"
+                     value="{% if edit_entry is defined and edit_entry %}{{ edit_entry[4] }}{% endif %}">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Source</label>
+              {% set current_source = edit_entry[2] if (edit_entry is defined and edit_entry) else None %}
+              {% set known_values = all_sources | map(attribute=0) | list %}
+              {% set is_custom = current_source and current_source not in known_values %}
+              <!-- Custom grouped source dropdown -->
+              <div class="custom-dropdown" id="formDropdownWrap">
+                <button type="button" id="formDropdownTrigger"
+                  class="custom-dropdown-trigger"
+                  onclick="toggleDropdown('form')">
+                  <span id="formDropdownLabel">
+                    {% if current_source and not is_custom %}
+                      {% for s, e in all_sources %}{% if s == current_source %}{{ e }} {{ s }}{% endif %}{% endfor %}
+                    {% elif is_custom %}📋 {{ current_source }}
+                    {% else %}💼 Salary{% endif %}
+                  </span>
+                  <span class="material-symbols-outlined chevron">expand_more</span>
+                </button>
+                <div id="formDropdownMenu" class="custom-dropdown-menu" style="display:none;">
+                  <div class="dropdown-group-label">Primary Income</div>
+                  {% for s, e in [('Salary','💼'),('Freelance','💻'),('Business','🏢'),('Bonus','💸')] %}
+                  <div class="dropdown-option {% if current_source==s or (not current_source and s=='Salary') %}selected{% endif %}"
+                       onclick="selectFormSource('{{ s }}','{{ e }} {{ s }}')">
+                    <span class="opt-emoji">{{ e }}</span><span class="opt-label">{{ s }}</span>
+                  </div>{% endfor %}
+                  <div class="dropdown-group-label">Support &amp; Education</div>
+                  {% for s, e in [('Scholarship','🎓'),('Family Support','👨‍👩‍👧'),('Gift','🎁')] %}
+                  <div class="dropdown-option {% if current_source==s %}selected{% endif %}"
+                       onclick="selectFormSource('{{ s }}','{{ e }} {{ s }}')">
+                    <span class="opt-emoji">{{ e }}</span><span class="opt-label">{{ s }}</span>
+                  </div>{% endfor %}
+                  <div class="dropdown-group-label">Investments &amp; Returns</div>
+                  {% for s, e in [('Investments','📈'),('Bank Interest','🏦'),('Rental Income','🏠')] %}
+                  <div class="dropdown-option {% if current_source==s %}selected{% endif %}"
+                       onclick="selectFormSource('{{ s }}','{{ e }} {{ s }}')">
+                    <span class="opt-emoji">{{ e }}</span><span class="opt-label">{{ s }}</span>
+                  </div>{% endfor %}
+                  <div class="dropdown-group-label">Other</div>
+                  {% for s, e in [('Cashback','💰'),('Refund','🔄'),('Loan Received','💵')] %}
+                  <div class="dropdown-option {% if current_source==s %}selected{% endif %}"
+                       onclick="selectFormSource('{{ s }}','{{ e }} {{ s }}')">
+                    <span class="opt-emoji">{{ e }}</span><span class="opt-label">{{ s }}</span>
+                  </div>{% endfor %}
+                  <div class="dropdown-option {% if is_custom or current_source=='Other' %}selected{% endif %}"
+                       onclick="selectFormSource('Other','📋 Other')">
+                    <span class="opt-emoji">📋</span><span class="opt-label">Other (custom)</span>
+                  </div>
+                </div>
+              </div>
+              <input type="text" id="customSource" placeholder="Enter custom source…" class="inp mt-2"
+                     style="display:{{ 'block' if is_custom else 'none' }};"
+                     value="{{ current_source if is_custom else '' }}" oninput="syncSourceField()">
+              <input type="hidden" name="source" id="sourceHidden" value="{{ current_source if current_source else 'Salary' }}">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Description <span class="normal-case font-normal text-on-surface-variant/60">(optional)</span></label>
+              <input type="text" name="description" placeholder="e.g. June Salary" class="inp"
+                     value="{% if edit_entry is defined and edit_entry %}{{ edit_entry[3] or '' }}{% endif %}">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Date</label>
+              <input type="date" name="date" required class="inp"
+                     value="{% if edit_entry is defined and edit_entry %}{{ edit_entry[1] }}{% endif %}">
+            </div>
+          </div>
+          <p class="text-[11px] text-on-surface-variant/45 mt-2.5 leading-snug">
+            <span class="font-semibold">Note:</span> Loan Received is tracked as cash inflow, not earned income, in analysis &amp; reports.
+          </p>
+
+          <div class="flex gap-3 mt-5">
+            {% if edit_entry is defined and edit_entry %}
+              <a href="/income"
+                class="flex-1 sm:flex-none text-center py-2.5 px-6 rounded-xl border border-outline-variant text-on-surface-variant hover:bg-surface-container-high transition-all font-bold text-sm">
+                Cancel
+              </a>
+              <button type="submit" id="incomeSubmitBtn"
+                class="flex-1 sm:flex-none bg-primary text-on-primary py-2.5 px-6 rounded-xl font-bold hover:brightness-110 transition-all shadow-lg shadow-primary/15 text-sm">
+                💾 Save Changes
+              </button>
+            {% else %}
+              <button type="submit" id="incomeSubmitBtn"
+                class="flex-1 sm:flex-none bg-primary text-on-primary py-2.5 px-6 rounded-xl font-bold hover:brightness-110 transition-all shadow-lg shadow-primary/15 text-sm">
+                ➕ Add Income
+              </button>
+            {% endif %}
+          </div>
+        </form>
+      </div>
+
+      <!-- ── Filters ── -->
+      <div class="bg-surface-container border border-outline-variant rounded-2xl p-5 mb-6">
+        <form method="GET" class="flex flex-wrap gap-3 items-center" id="incomeFilterForm">
+          <!-- Filter source custom dropdown -->
+          <div class="custom-dropdown" style="min-width:190px;" id="filterDropdownWrap">
+            <button type="button" id="filterDropdownTrigger"
+              class="custom-dropdown-trigger {% if not search %}placeholder{% endif %}"
+              onclick="toggleDropdown('filter')">
+              <span id="filterDropdownLabel">
+                {% if search %}
+                  {{ all_sources | selectattr(0, 'equalto', search) | map(attribute=1) | first | default('📋') }} {{ search }}
+                {% else %}Search by source…{% endif %}
+              </span>
+              <span class="material-symbols-outlined chevron">expand_more</span>
+            </button>
+            <div id="filterDropdownMenu" class="custom-dropdown-menu" style="display:none;">
+              <div class="dropdown-option {% if not search %}selected{% endif %}" onclick="selectFilterSource('','')">
+                <span class="opt-label" style="color:#86948a;">All sources</span>
+              </div>
+              <div class="dropdown-group-label">Primary Income</div>
+              {% for s, e in [('Salary','💼'),('Freelance','💻'),('Business','🏢'),('Bonus','💸')] %}
+              <div class="dropdown-option {% if search==s %}selected{% endif %}" onclick="selectFilterSource('{{ s }}','{{ e }} {{ s }}')">
+                <span class="opt-emoji">{{ e }}</span><span class="opt-label">{{ s }}</span>
+              </div>{% endfor %}
+              <div class="dropdown-group-label">Support &amp; Education</div>
+              {% for s, e in [('Scholarship','🎓'),('Family Support','👨‍👩‍👧'),('Gift','🎁')] %}
+              <div class="dropdown-option {% if search==s %}selected{% endif %}" onclick="selectFilterSource('{{ s }}','{{ e }} {{ s }}')">
+                <span class="opt-emoji">{{ e }}</span><span class="opt-label">{{ s }}</span>
+              </div>{% endfor %}
+              <div class="dropdown-group-label">Investments &amp; Returns</div>
+              {% for s, e in [('Investments','📈'),('Bank Interest','🏦'),('Rental Income','🏠')] %}
+              <div class="dropdown-option {% if search==s %}selected{% endif %}" onclick="selectFilterSource('{{ s }}','{{ e }} {{ s }}')">
+                <span class="opt-emoji">{{ e }}</span><span class="opt-label">{{ s }}</span>
+              </div>{% endfor %}
+              <div class="dropdown-group-label">Other</div>
+              {% for s, e in [('Cashback','💰'),('Refund','🔄'),('Loan Received','💵'),('Other','📋')] %}
+              <div class="dropdown-option {% if search==s %}selected{% endif %}" onclick="selectFilterSource('{{ s }}','{{ e }} {{ s }}')">
+                <span class="opt-emoji">{{ e }}</span><span class="opt-label">{{ s }}</span>
+              </div>{% endfor %}
+            </div>
+            <input type="hidden" name="search" id="filterSourceHidden" value="{{ search or '' }}">
+          </div>
+
+          <select name="sort" class="inp" style="width:auto;min-width:170px;">
+            <option value="">No Sorting</option>
+            <option value="amount_asc"  {% if sort=='amount_asc' %}selected{% endif %}>Amount Low → High</option>
+            <option value="amount_desc" {% if sort=='amount_desc' %}selected{% endif %}>Amount High → Low</option>
+            <option value="date_desc"   {% if sort=='date_desc' or not sort %}selected{% endif %}>Newest First</option>
+            <option value="date_asc"    {% if sort=='date_asc' %}selected{% endif %}>Oldest First</option>
+          </select>
+
+          <div class="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
+            <div class="flex items-center gap-2">
+              <label class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">From</label>
+              <input type="date" name="start_date" value="{{ start_date if start_date else '' }}" class="inp date-range-input">
+            </div>
+            <div class="flex items-center gap-2">
+              <label class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">To</label>
+              <input type="date" name="end_date" value="{{ end_date if end_date else '' }}" class="inp date-range-input">
+            </div>
+          </div>
+
+          <button type="submit"
+            class="bg-primary text-on-primary px-5 py-2.5 rounded-xl font-bold hover:brightness-110 transition-all text-sm">
+            Apply Filters
+          </button>
+          <a href="/income" class="border border-outline-variant text-on-surface-variant px-4 py-2.5 rounded-xl font-bold hover:bg-surface-container-high transition-all text-sm">
+            Reset
+          </a>
+        </form>
+      </div>
+
+      <!-- ── Income History Table ── -->
+
+      <div class="bg-surface-container border border-outline-variant rounded-2xl p-2 sm:p-4 overflow-x-auto">
+        <table class="exp-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Source</th>
+              <th>Description</th>
+              <th style="text-align:right;">Amount</th>
+              <th style="text-align:center;width:110px;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for entry in income_list %}
+            <tr {% if edit_entry is defined and edit_entry and edit_entry[0] == entry[0] %}class="editing"{% endif %}>
+              <td class="text-on-surface-variant text-[13px] whitespace-nowrap">{{ entry[1] }}</td>
+              <td>
+                <span class="cat-badge">
+                  {% if entry[2]|lower == 'salary' %}💼
+                  {% elif entry[2]|lower == 'freelance' %}💻
+                  {% elif entry[2]|lower == 'business' %}🏢
+                  {% elif entry[2]|lower == 'bonus' %}💸
+                  {% elif entry[2]|lower == 'scholarship' %}🎓
+                  {% elif entry[2]|lower == 'family support' %}👨‍👩‍👧
+                  {% elif entry[2]|lower == 'investments' or entry[2]|lower == 'investment' %}📈
+                  {% elif entry[2]|lower == 'bank interest' %}🏦
+                  {% elif entry[2]|lower == 'rental income' %}🏠
+                  {% elif entry[2]|lower == 'gift' %}🎁
+                  {% elif entry[2]|lower == 'cashback' %}💰
+                  {% elif entry[2]|lower == 'refund' %}🔄
+                  {% elif entry[2]|lower == 'loan received' %}💵
+                  {% else %}📋{% endif %}
+                  {{ entry[2] }}
+                </span>
+              </td>
+              <td class="font-medium {{ 'text-on-surface' if entry[3] else 'text-on-surface-variant/50 italic' }}">{{ entry[3] if entry[3] else 'No description' }}</td>
+              <td class="text-right font-bold text-primary whitespace-nowrap">+₹{{ "{:,.2f}".format(entry[4]) }}</td>
+              <td class="text-center">
+                <div class="flex justify-center gap-2">
+                  <a href="/edit-income/{{ entry[0] }}" class="act-btn act-edit" title="Edit">
+                    <span class="material-symbols-outlined" style="font-size:16px;">edit</span>
+                  </a>
+                  <button onclick="confirmDelete({{ entry[0] }})" class="act-btn act-delete" title="Delete">
+                    <span class="material-symbols-outlined" style="font-size:16px;">delete</span>
+                  </button>
+                </div>
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="5" class="text-center py-16">
+                <span class="material-symbols-outlined text-on-surface-variant/25 mb-3 block" style="font-size:40px;">payments</span>
+                <h3 class="font-bold text-on-surface mb-1">No income entries found</h3>
+                <p class="text-sm text-on-surface-variant mb-5">
+                  {% if search or start_date or end_date %}
+                    Try adjusting your filters.
+                  {% else %}
+                    Use the form above to log your first income.
+                  {% endif %}
+                </p>
+                {% if search or start_date or end_date %}
+                <a href="/income" class="text-xs font-bold text-primary border border-primary/30 bg-primary/6 px-4 py-2 rounded-lg hover:bg-primary/12 transition-colors inline-block">Clear Filters</a>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {% if total_pages and total_pages > 1 %}
+      <div class="flex items-center justify-between mt-4 flex-wrap gap-3">
+        <p class="text-xs text-on-surface-variant">
+          Page {{ page }} of {{ total_pages }} · {{ filtered_count }} entr{{ 'y' if filtered_count == 1 else 'ies' }}
+        </p>
+        <div class="flex items-center gap-2">
+          {% set qs = {'search': search, 'sort': sort, 'start_date': start_date, 'end_date': end_date} %}
+          {% if page > 1 %}
+          <a href="?{% for k,v in qs.items() %}{% if v %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page - 1 }}"
+             class="act-btn act-edit" style="width:auto;padding:0 14px;" title="Previous" onclick="saveIncomeScroll()">
+            <span class="material-symbols-outlined" style="font-size:16px;">chevron_left</span>
+          </a>
+          {% else %}
+          <span class="act-btn" style="width:auto;padding:0 14px;opacity:.35;cursor:not-allowed;color:#86948a;border-color:#3c4a42;">
+            <span class="material-symbols-outlined" style="font-size:16px;">chevron_left</span>
+          </span>
+          {% endif %}
+
+          {% for p in range(1, total_pages + 1) %}
+            {% if p == page %}
+            <span class="act-btn" style="width:34px;background:rgba(78,222,163,.14);color:#4edea3;border-color:rgba(78,222,163,.3);font-weight:700;font-size:13px;">{{ p }}</span>
+            {% elif p == 1 or p == total_pages or (p >= page - 1 and p <= page + 1) %}
+            <a href="?{% for k,v in qs.items() %}{% if v %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ p }}"
+               class="act-btn" style="width:34px;color:#bbcabf;border-color:#3c4a42;font-size:13px;" onclick="saveIncomeScroll()">{{ p }}</a>
+            {% elif p == 2 or p == total_pages - 1 %}
+            <span class="text-on-surface-variant text-xs px-1">…</span>
+            {% endif %}
+          {% endfor %}
+
+          {% if page < total_pages %}
+          <a href="?{% for k,v in qs.items() %}{% if v %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page + 1 }}"
+             class="act-btn act-edit" style="width:auto;padding:0 14px;" title="Next" onclick="saveIncomeScroll()">
+            <span class="material-symbols-outlined" style="font-size:16px;">chevron_right</span>
+          </a>
+          {% else %}
+          <span class="act-btn" style="width:auto;padding:0 14px;opacity:.35;cursor:not-allowed;color:#86948a;border-color:#3c4a42;">
+            <span class="material-symbols-outlined" style="font-size:16px;">chevron_right</span>
+          </span>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+    </div>
+  </main>
+</div>
+
+<!-- ═══════════ DELETE CONFIRM MODAL ═══════════ -->
+<div id="deleteModal" class="modal-overlay" onclick="if(event.target===this)closeDeleteModal()">
+  <div class="bg-surface-container border border-outline-variant rounded-2xl p-6 w-full max-w-sm mx-4 shadow-2xl">
+    <div class="flex items-center gap-3 mb-4">
+      <div class="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center flex-shrink-0">
+        <span class="material-symbols-outlined text-red-400" style="font-size:20px;">delete</span>
+      </div>
+      <div>
+        <h2 class="font-extrabold text-base">Delete Income Entry</h2>
+        <p class="text-xs text-on-surface-variant mt-0.5">This action cannot be undone.</p>
+      </div>
+    </div>
+    <div class="flex gap-3">
+      <button onclick="closeDeleteModal()"
+        class="flex-1 py-2.5 rounded-xl border border-outline-variant text-on-surface-variant hover:bg-surface-container-high transition-all font-bold text-sm">
+        Cancel
+      </button>
+      <form id="deleteConfirmForm" method="POST" action="#" class="flex-1">
+        <button type="submit"
+          class="w-full bg-red-500/90 text-white py-2.5 rounded-xl font-bold hover:bg-red-500 transition-all text-sm">
+          Delete
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeDeleteModal(); closeAllDropdowns(); } });
+
+// ── Custom Dropdown Logic ──────────────────────────────────────────────────
+let activeDropdown = null;
+
+function positionDropdown(menuEl, wrapEl) {
+  // Decide whether to open upward or downward based on available space
+  const rect = wrapEl.getBoundingClientRect();
+  const spaceBelow = window.innerHeight - rect.bottom;
+  const spaceAbove = rect.top;
+  const menuHeight = 280; // max-height
+  menuEl.classList.toggle('open-up', spaceBelow < menuHeight && spaceAbove > spaceBelow);
+}
+
+function toggleDropdown(which) {
+  const trigger = document.getElementById(which + 'DropdownTrigger');
+  const menu    = document.getElementById(which + 'DropdownMenu');
+  const wrap    = document.getElementById(which + 'DropdownWrap');
+  const isOpen  = menu.style.display !== 'none';
+
+  closeAllDropdowns();
+
+  if (!isOpen) {
+    menu.style.display = 'block';
+    trigger.classList.add('open');
+    positionDropdown(menu, wrap);
+    activeDropdown = which;
+  }
+}
+
+function closeAllDropdowns() {
+  ['filter','form'].forEach(which => {
+    const t = document.getElementById(which + 'DropdownTrigger');
+    const m = document.getElementById(which + 'DropdownMenu');
+    if (t && m) { m.style.display = 'none'; t.classList.remove('open'); }
+  });
+  activeDropdown = null;
+}
+
+// Close when clicking outside
+document.addEventListener('click', e => {
+  if (!e.target.closest('.custom-dropdown')) closeAllDropdowns();
+});
+
+// ── Filter source dropdown ─────────────────────────────────────────────────
+function selectFilterSource(value, label) {
+  document.getElementById('filterSourceHidden').value = value;
+  const trigger = document.getElementById('filterDropdownTrigger');
+  document.getElementById('filterDropdownLabel').textContent = label || 'All sources';
+  trigger.classList.toggle('placeholder', !value);
+  // Update selected state
+  document.querySelectorAll('#filterDropdownMenu .dropdown-option').forEach(o => {
+    o.classList.toggle('selected', o.dataset.val === value || (!value && !o.dataset.val));
+  });
+  closeAllDropdowns();
+  // Auto-submit the filter form. Note: calling .submit() directly does NOT
+  // fire the form's 'submit' event, so the scroll-preserving listener never
+  // runs for this path — save scroll explicitly here too.
+  saveIncomeScroll();
+  trigger.closest('form').submit();
+}
+
+// ── Form source dropdown ───────────────────────────────────────────────────
+function selectFormSource(value, label) {
+  document.getElementById('sourceHidden').value = value;
+  document.getElementById('formDropdownLabel').textContent = label;
+  // Update selected state
+  document.querySelectorAll('#formDropdownMenu .dropdown-option').forEach(o => o.classList.remove('selected'));
+  event.currentTarget.classList.add('selected');
+  // Show/hide custom input
+  const custom = document.getElementById('customSource');
+  if (value === 'Other') {
+    custom.style.display = 'block';
+    custom.focus();
+    custom.value = '';
+  } else {
+    custom.style.display = 'none';
+    custom.value = '';
+  }
+  closeAllDropdowns();
+}
+
+function syncSourceField() {
+  const custom = document.getElementById('customSource');
+  const hidden = document.getElementById('sourceHidden');
+  if (hidden.value === 'Other' && custom && custom.value.trim()) {
+    hidden.value = custom.value.trim();
+  }
+}
+if (document.getElementById('customSource')) {
+  document.getElementById('customSource').addEventListener('input', syncSourceField);
+}
+
+// keep hidden field correct right before the form is submitted
+const sourceForm = document.querySelector('form[action^="/income"], form[action^="/edit-income"]');
+if (sourceForm) sourceForm.addEventListener('submit', syncSourceField);
+
+// ── Loading state while saving (Add/Edit Income form) ───────────────────────
+const incomeForm = document.getElementById('incomeForm');
+if (incomeForm) {
+  incomeForm.addEventListener('submit', function () {
+    const btn = document.getElementById('incomeSubmitBtn');
+    if (btn) {
+      btn.disabled = true;
+      btn.style.opacity = '0.7';
+      btn.textContent = 'Saving…';
+    }
+  });
+}
+
+// ── Preserve scroll position across Apply Filters / pagination ─────────────
+// Filtering or paging is a normal full-page GET navigation (needed so the
+// URL stays bookmarkable and Flask sees the query string), but that resets
+// scroll to the top by default. Save the scroll position right before
+// navigating away, then restore it once the new page loads.
+//
+// Tracks both the window and <main> (which has overflow-y-auto) since
+// depending on total page height, either one can end up being the element
+// that's actually scrolling — restoring both is harmless either way.
+function saveIncomeScroll() {
+  const main = document.querySelector('main');
+  sessionStorage.setItem('incomeScrollWin', window.scrollY || document.documentElement.scrollTop || 0);
+  sessionStorage.setItem('incomeScrollMain', main ? main.scrollTop : 0);
+}
+document.getElementById('incomeFilterForm')?.addEventListener('submit', saveIncomeScroll);
+
+function restoreIncomeScroll() {
+  const winY = sessionStorage.getItem('incomeScrollWin');
+  const mainY = sessionStorage.getItem('incomeScrollMain');
+  const main = document.querySelector('main');
+  if (winY !== null || mainY !== null) {
+    sessionStorage.removeItem('incomeScrollWin');
+    sessionStorage.removeItem('incomeScrollMain');
+    const apply = () => {
+      if (winY !== null) window.scrollTo(0, parseInt(winY));
+      if (main && mainY !== null) main.scrollTop = parseInt(mainY);
+    };
+    apply();
+    requestAnimationFrame(apply);
+  }
+  // Reveal now that we're positioned correctly (or immediately if there was
+  // nothing to restore) — the head script hid the page the instant it
+  // started loading, so this is the moment the jump becomes invisible
+  // instead of a visible "flash at top, then snap down".
+  document.documentElement.style.visibility = '';
+}
+restoreIncomeScroll();
+
+// ── Delete modal ───────────────────────────────────────────────────────────
+const deleteModal = document.getElementById('deleteModal');
+function confirmDelete(id) {
+    document.getElementById('deleteConfirmForm').action = '/delete-income/' + id;
+    deleteModal.classList.add('open');
+}
+function closeDeleteModal() {
+    deleteModal.classList.remove('open');
+}
+
+// ── Toast (single bottom-right, consistent with the rest of the app) ───────
+function showToast(message, type) {
+    const toast = document.getElementById('toast');
+    const icon  = document.getElementById('toastIcon');
+    document.getElementById('toastMsg').textContent = message;
+    icon.textContent = type === 'error' ? 'error' : 'check_circle';
+    icon.className = 'material-symbols-outlined ' + (type === 'error' ? 'text-error' : 'text-primary');
+    icon.style.fontSize = '16px';
+    toast.style.opacity = '1';
+    setTimeout(() => { toast.style.opacity = '0'; }, 3200);
+}
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+      showToast("{{ message }}", "{{ category }}");
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+</script>
+</body>
+</html>

@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>{{ goal.name }} | Finora</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/npm/geist@1.3.0/dist/fonts/geist.min.css" rel="stylesheet"/>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          "surface-dim":            "#10141a",
+          "background":             "#10141a",
+          "surface-container-low":  "#181c22",
+          "on-primary":             "#003824",
+          "primary-container":      "#10b981",
+          "surface-container":      "#1c2026",
+          "on-primary-container":   "#00422b",
+          "primary":                "#4edea3",
+          "on-surface":             "#dfe2eb",
+          "on-surface-variant":     "#bbcabf",
+          "surface-variant":        "#31353c",
+          "outline-variant":        "#3c4a42",
+          "outline":                "#86948a",
+          "surface":                "#10141a",
+          "surface-container-high": "#262a31",
+          "secondary":              "#adc6ff",
+          "error":                  "#f87171",
+        },
+        fontFamily: { sans: ["Geist", "Inter", "sans-serif"], display: ["Geist", "sans-serif"] },
+      },
+    },
+  }
+</script>
+<style>
+  html { color-scheme: dark; }
+  body { font-family:'Geist',sans-serif; background:#10141a; color:#dfe2eb; -webkit-font-smoothing:antialiased; }
+  .material-symbols-outlined { font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; }
+  .nav-link { display:flex; align-items:center; gap:10px; padding:9px 14px; border-radius:10px; color:#bbcabf; text-decoration:none; font-size:14px; font-weight:500; transition:background .15s,color .15s; }
+  .nav-link:hover  { background:#1c2026; color:#dfe2eb; }
+  .nav-link.active { background:#1c2026; color:#4edea3; }
+  ::-webkit-scrollbar { width:5px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:#3c4a42; border-radius:3px; }
+
+  .panel { background:#1c2026; border:1px solid #3c4a42; border-radius:18px; }
+  .stat-tile { background:#181c22; border:1px solid #3c4a42; border-radius:14px; padding:14px 16px; }
+
+  .minp {
+    background:#10141a !important; border:1px solid #3c4a42; border-radius:10px;
+    padding:12px 16px; padding-right:28px; color:#dfe2eb !important; font-size:17px; font-weight:700;
+    width:100%; transition:border-color .15s; color-scheme:dark;
+    -webkit-appearance:none; appearance:none;
+  }
+  .minp:focus { outline:none; border-color:#4edea3; box-shadow:0 0 0 3px rgba(78,222,163,.12); }
+  .minp::placeholder { color:#86948a; font-weight:500; font-size:14px; }
+  .minp:-webkit-autofill, .minp:-webkit-autofill:hover, .minp:-webkit-autofill:focus {
+    -webkit-box-shadow:0 0 0 1000px #10141a inset !important;
+    -webkit-text-fill-color:#dfe2eb !important;
+    caret-color:#dfe2eb;
+  }
+  .minp.field-error { border-color:#f87171; }
+  .minp-note { font-size:13px; font-weight:500; padding:9px 13px; }
+  .form-label { display:block; font-size:11px; font-weight:700; color:#86948a; text-transform:uppercase; letter-spacing:.06em; margin-bottom:6px; }
+  .field-error-text { font-size:12px; font-weight:600; color:#f87171; margin-top:-2px; display:none; }
+  .field-error-text.show { display:block; }
+
+  .savings-toggle { display:flex; background:#10141a; border:1px solid #3c4a42; border-radius:10px; padding:3px; gap:3px; }
+  .savings-toggle button { flex:1; padding:8px 0; border-radius:8px; font-size:13px; font-weight:700; color:#86948a; background:none; border:none; cursor:pointer; transition:all .15s; }
+  .savings-toggle button.active-deposit { background:rgba(78,222,163,.14); color:#4edea3; }
+  .savings-toggle button.active-withdraw { background:rgba(173,198,255,.14); color:#adc6ff; }
+
+  /* ── Activity timeline — compact banking-style rows ──
+     Target ~60–80px per row with no note; density matters more than
+     decoration once a list runs into the hundreds of entries. */
+  .timeline-day-heading { font-size:10.5px; font-weight:700; color:#86948a; text-transform:uppercase; letter-spacing:.08em; padding:0 6px; }
+  .timeline-item {
+    display:flex; align-items:flex-start; gap:10px;
+    padding:9px 6px; border-radius:9px;
+    border-bottom:1px solid rgba(60,74,66,.22);
+    position:relative; transition:background-color .12s ease;
+  }
+  .timeline-item:last-child { border-bottom:none; }
+  .timeline-item:hover { background:rgba(255,255,255,.025); }
+  /* Icons stay small and slightly muted so they read as a marker next to
+     the type/amount line, not a competing focal point. */
+  .timeline-icon { width:22px; height:22px; margin-top:1px; border-radius:7px; display:flex; align-items:center; justify-content:center; flex-shrink:0; opacity:.85; }
+  .timeline-note-text { font-size:12px; color:#8a9691; margin-top:2px; line-height:1.4; }
+
+  /* Edit/Delete — kebab menu. Faint by default rather than fully hidden so
+     touch devices (no :hover) can still find and tap it; hover/tap-open
+     brings it to full opacity, matching the "fade in on hover" ask while
+     staying reachable on mobile. */
+  .txn-menu-btn { width:24px; height:24px; margin-top:1px; border-radius:7px; display:flex; align-items:center; justify-content:center; color:#86948a; background:transparent; border:1px solid transparent; cursor:pointer; transition:opacity .15s, background .15s; flex-shrink:0; opacity:.4; }
+  .timeline-item:hover .txn-menu-btn, .txn-menu-btn.menu-open { opacity:.9; }
+  .txn-menu-btn:hover, .txn-menu-btn.menu-open:hover { opacity:1; background:#262a31; color:#dfe2eb; }
+  .txn-menu { position:absolute; top:calc(100% + 2px); right:0; background:#1c2026; border:1px solid #3c4a42; border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.5); z-index:60; min-width:120px; overflow:hidden; display:none; }
+  .txn-menu.open { display:block; }
+  .txn-menu button { display:flex; align-items:center; gap:8px; width:100%; text-align:left; padding:8px 12px; font-size:12.5px; font-weight:600; color:#dfe2eb; background:none; border:none; cursor:pointer; transition:background .1s; }
+  .txn-menu button:hover { background:#262a31; }
+  .txn-menu button.danger { color:#f87171; }
+
+  .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.78); backdrop-filter:blur(6px); display:flex; align-items:center; justify-content:center; opacity:0; pointer-events:none; transition:opacity .22s; z-index:1000; }
+  .modal-overlay.open { opacity:1; pointer-events:auto; }
+  .modal-box { background:#1c2026; border:1px solid #3c4a42; border-radius:20px; width:100%; max-width:420px; margin:16px; box-shadow:0 24px 60px rgba(0,0,0,.6); transform:translateY(16px); transition:transform .22s cubic-bezier(.4,0,.2,1); }
+  .modal-overlay.open .modal-box { transform:translateY(0); }
+
+  /* ── Update animations — subtle, 200–400ms, no bounce/scale drama ── */
+  #ringFill { transition: stroke-dasharray .35s ease; }
+  .value-pulse { animation: valuePulse .35s ease; }
+  @keyframes valuePulse {
+    0%   { opacity:1; }
+    35%  { opacity:.35; }
+    100% { opacity:1; }
+  }
+  .tile-flash { animation: tileFlash .4s ease; }
+  @keyframes tileFlash {
+    0%   { background-color:#181c22; }
+    30%  { background-color:rgba(78,222,163,.10); }
+    100% { background-color:#181c22; }
+  }
+</style>
+</head>
+<body class="bg-surface text-on-surface min-h-screen">
+
+<div id="toast" class="fixed bottom-6 right-6 bg-surface-container-high border border-outline-variant text-on-surface text-sm font-semibold px-5 py-3 rounded-xl shadow-2xl z-50 flex items-center gap-2.5 opacity-0 pointer-events-none transition-opacity duration-200">
+  <span class="material-symbols-outlined text-primary" id="toastIcon" style="font-size:16px;">check_circle</span>
+  <span id="toastMsg"></span>
+</div>
+
+<div class="flex min-h-screen">
+  {% include 'partials/sidebar.html' %}
+
+  <main class="flex-1 overflow-y-auto min-w-0">
+    {% include 'partials/mobile_topbar.html' %}
+    <div class="max-w-4xl mx-auto px-4 sm:px-7 py-6 sm:py-8">
+
+      <!-- ── Header ── -->
+      <div class="flex items-center justify-between mb-6 flex-wrap gap-3">
+        <a href="/goals" class="flex items-center gap-2 text-on-surface-variant hover:text-on-surface text-sm font-semibold transition-colors">
+          <span class="material-symbols-outlined" style="font-size:18px;">arrow_back</span> Back to Goals
+        </a>
+        {% if not goal.is_closed %}
+        <div class="flex items-center gap-2">
+          <a href="/edit-goal/{{ goal.id }}" class="flex items-center gap-1.5 border border-outline-variant text-on-surface-variant px-3.5 py-2 rounded-xl font-bold hover:bg-surface-container-high transition-all text-xs">
+            <span class="material-symbols-outlined" style="font-size:15px;">edit</span> Edit
+          </a>
+          <button type="button" onclick="openCloseConfirm()" class="flex items-center gap-1.5 border border-error/30 text-error/80 px-3.5 py-2 rounded-xl font-bold hover:bg-error/10 transition-all text-xs">
+            <span class="material-symbols-outlined" style="font-size:15px;">flag</span> Close Goal
+          </button>
+        </div>
+        {% endif %}
+      </div>
+
+      {% if goal.is_closed %}
+      <div class="flex items-center gap-2.5 bg-on-surface-variant/8 border border-outline-variant text-on-surface-variant text-xs font-semibold px-4 py-3 rounded-xl mb-5">
+        <span class="material-symbols-outlined" style="font-size:16px;">inventory_2</span>
+        This goal is closed and read-only. Restore it from the Goals page to make changes.
+      </div>
+      {% endif %}
+
+      <!-- ── Goal Summary ── -->
+      <div class="panel p-7 mb-5">
+        <div class="flex flex-col sm:flex-row items-center gap-7">
+          <!-- Progress ring -->
+          <div class="relative flex-shrink-0" style="width:150px;height:150px;">
+            <svg width="150" height="150" viewBox="0 0 150 150" style="transform:rotate(-90deg);">
+              <circle cx="75" cy="75" r="64" fill="none" stroke="#262a31" stroke-width="12"/>
+              <circle id="ringFill" cx="75" cy="75" r="64" fill="none" stroke="{{ goal.color }}" stroke-width="12" stroke-linecap="round"
+                stroke-dasharray="{{ (goal.bar_width / 100 * 402.1) | round(1) }} 402.1"/>
+            </svg>
+            <div class="absolute inset-0 flex flex-col items-center justify-center">
+              <span class="text-3xl">{{ goal.icon }}</span>
+              <span id="percentText" class="text-lg font-extrabold mt-1">{{ goal.percent }}%</span>
+            </div>
+          </div>
+
+          <div class="flex-1 text-center sm:text-left w-full">
+            <div class="flex items-center justify-center sm:justify-start gap-2 mb-1 flex-wrap">
+              <h1 class="text-xl font-extrabold tracking-tight">{{ goal.name }}</h1>
+              <span id="statusBadge">
+                {% if goal.status == 'target_reached' %}
+                <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg bg-amber-400/10 text-amber-400">✔ Target Reached</span>
+                {% elif goal.status == 'overdue' %}
+                <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg bg-error/10 text-error">⚠ Overdue</span>
+              {% elif goal.status == 'closed' %}
+              <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg bg-on-surface-variant/10 text-on-surface-variant">Closed</span>
+              {% else %}
+              <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg bg-primary/10 text-primary">In Progress</span>
+              {% endif %}
+            </div>
+            {% if goal.target_date_display %}
+            <p class="text-xs text-on-surface-variant mb-4">Target date: {{ goal.target_date_display }}</p>
+            {% else %}
+            <p class="text-xs text-on-surface-variant mb-4">No target date set</p>
+            {% endif %}
+
+            <!-- Motivational message — keyed off percent, pure encouragement -->
+            <p id="motivationText" class="text-sm font-bold mb-4 {{ goal.motivation_class }}">{{ goal.motivation_text }}</p>
+
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div class="stat-tile" id="tileReserved">
+                <p class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-wider mb-1">Reserved</p>
+                <p id="statReserved" class="text-base font-extrabold text-primary">₹{{ "{:,.0f}".format(goal.current) }}</p>
+              </div>
+              <div class="stat-tile">
+                <p class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-wider mb-1">Target</p>
+                <p class="text-base font-extrabold">₹{{ "{:,.0f}".format(goal.target) }}</p>
+              </div>
+              <div class="stat-tile" id="tileRemaining">
+                <p class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-wider mb-1">Remaining</p>
+                <p id="statRemaining" class="text-base font-extrabold text-secondary">₹{{ "{:,.0f}".format(goal.remaining) }}</p>
+                <p id="monthlyNeededLine" class="text-[10px] text-on-surface-variant mt-1" style="display:{{ 'block' if goal.monthly_needed is not none else 'none' }};">
+                  ≈ ₹{{ "{:,.0f}".format(goal.monthly_needed) if goal.monthly_needed is not none else 0 }}/month needed
+                </p>
+              </div>
+              <div class="stat-tile" id="tileProgress">
+                <p class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-wider mb-1">Progress</p>
+                <p id="statProgress" class="text-base font-extrabold">{{ goal.percent }}%</p>
+              </div>
+            </div>
+
+            <div id="milestoneBlock" class="flex items-center gap-2 mt-3 px-3.5 py-2.5 rounded-xl bg-secondary/6 border border-secondary/15" style="display:{{ 'flex' if goal.next_milestone else 'none' }};">
+              <span class="material-symbols-outlined text-secondary" style="font-size:15px;">flag</span>
+              <p class="text-xs text-on-surface">
+                <span class="font-bold text-on-surface-variant uppercase tracking-wider text-[10px] mr-1">Next Milestone</span>
+                <span id="milestoneText" class="font-semibold">
+                  {% if goal.next_milestone %}₹{{ "{:,.0f}".format(goal.next_milestone.amount) }} more to reach {{ goal.next_milestone.pct }}%{% endif %}
+                </span>
+              </p>
+            </div>
+
+            <p id="paceMessageLine" class="text-xs font-semibold text-secondary mt-3" style="display:{{ 'block' if (goal.status == 'in_progress' and goal.pace_message) else 'none' }};">
+              ⚡ <span id="paceMessageText">{{ goal.pace_message or '' }}</span>
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Goal Details (Notes + Target Date) — Target Date always shown, Notes only if present ── -->
+      <div class="panel p-6 mb-5">
+        <p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-4">Goal Details</p>
+        <div class="flex flex-col gap-4">
+          {% if goal.description %}
+          <div>
+            <p class="text-xs font-semibold text-on-surface-variant mb-1.5 flex items-center gap-1.5">
+              <span>📝</span> Notes
+            </p>
+            <p class="text-sm text-on-surface leading-relaxed whitespace-pre-line">{{ goal.description }}</p>
+          </div>
+          {% endif %}
+          <div>
+            <p class="text-xs font-semibold text-on-surface-variant mb-1.5 flex items-center gap-1.5">
+              <span>📅</span> Target Date
+            </p>
+            <p class="text-sm text-on-surface">{{ goal.target_date_display if goal.target_date_display else 'No target date' }}</p>
+          </div>
+        </div>
+      </div>
+
+      {% if not goal.is_closed %}
+      <!-- ── Manage Savings ── -->
+      <div class="panel p-6 mb-5">
+        <p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-3">Manage Savings</p>
+        <div style="max-width:560px;">
+          <div class="savings-toggle mb-4" style="max-width:280px;">
+            <button type="button" id="depositToggleBtn" class="active-deposit" onclick="setSavingsMode('deposit')">Deposit</button>
+            <button type="button" id="withdrawToggleBtn" onclick="setSavingsMode('withdraw')">Withdraw</button>
+          </div>
+
+          <form id="depositForm" class="flex flex-col gap-3" onsubmit="return submitSavings(event, 'deposit')">
+            <input type="hidden" name="action_type" value="deposit">
+            <div>
+              <label class="form-label">Amount</label>
+              <input type="number" step="0.01" name="added_amount" placeholder="₹0.00" required class="minp" id="depositAmountInput">
+              <p class="field-error-text" id="depositError"></p>
+            </div>
+            <div>
+              <label class="form-label">Note <span class="normal-case font-normal text-on-surface-variant/60">(optional)</span></label>
+              <input type="text" name="note" maxlength="255" placeholder="e.g. Diwali bonus" class="minp minp-note">
+            </div>
+            <button type="submit" class="bg-primary text-on-primary text-sm font-bold px-4 py-2.5 rounded-lg hover:brightness-110 transition-all">Deposit Money</button>
+          </form>
+
+          <form id="withdrawForm" class="flex-col gap-3" style="display:none;" onsubmit="return confirmWithdraw(event)">
+            <input type="hidden" name="action_type" value="withdraw">
+            <div>
+              <label class="form-label">Amount</label>
+              <input type="number" step="0.01" name="added_amount" placeholder="₹0.00" required class="minp" id="withdrawAmountInput">
+              <p class="field-error-text" id="withdrawError"></p>
+            </div>
+            <div>
+              <label class="form-label">Note <span class="normal-case font-normal text-on-surface-variant/60">(optional)</span></label>
+              <input type="text" name="note" maxlength="255" placeholder="e.g. what this money is for" class="minp minp-note">
+            </div>
+            <button type="submit" class="bg-surface-container-high border border-outline-variant text-on-surface text-sm font-bold px-4 py-2.5 rounded-lg hover:bg-surface-variant transition-all">Withdraw Money</button>
+            <p class="text-[11px] text-on-surface-variant/60">Withdrawn money is returned to your Available Balance.</p>
+          </form>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- ── Activity Timeline ── -->
+      <div class="panel p-6">
+        <p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-2">Activity History</p>
+        <div id="timelineList">
+          <p class="text-xs text-on-surface-variant/60 py-2">Loading…</p>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- Close confirm -->
+<div id="closeModal" class="modal-overlay" onclick="if(event.target===this)closeCloseConfirm()">
+  <div class="modal-box p-6">
+    <div class="flex items-center gap-3 mb-4">
+      <div class="w-10 h-10 rounded-xl bg-error/10 flex items-center justify-center flex-shrink-0">
+        <span class="material-symbols-outlined text-error" style="font-size:20px;">flag</span>
+      </div>
+      <div>
+        <h2 class="font-extrabold text-base">Close this goal?</h2>
+        <p class="text-xs text-on-surface-variant mt-0.5">This is always a manual decision — closing never assumes why.</p>
+      </div>
+    </div>
+    <p id="closeModalBody" class="text-sm text-on-surface-variant mb-5"></p>
+    <div class="flex gap-3">
+      <button type="button" onclick="closeCloseConfirm()" class="flex-1 py-2.5 rounded-xl border border-outline-variant text-on-surface-variant hover:bg-surface-container-high transition-all font-bold text-sm">Cancel</button>
+      <form method="POST" action="/close-goal/{{ goal.id }}" class="flex-1">
+        <button type="submit" class="w-full bg-primary text-on-primary py-2.5 rounded-xl font-bold hover:brightness-110 transition-all text-sm">
+          {% if goal.current > 0 %}Return to Available Balance{% else %}Close Goal{% endif %}
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Withdraw confirm -->
+<div id="withdrawModal" class="modal-overlay" onclick="if(event.target===this)closeWithdrawConfirm()">
+  <div class="modal-box p-6" style="max-width:400px;">
+    <div class="flex items-center gap-3 mb-4">
+      <div class="w-10 h-10 rounded-xl bg-secondary/10 flex items-center justify-center flex-shrink-0">
+        <span class="material-symbols-outlined text-secondary" style="font-size:20px;">payments</span>
+      </div>
+      <div>
+        <h2 class="font-extrabold text-base">Withdraw savings?</h2>
+        <p class="text-xs text-on-surface-variant mt-0.5">This represents actually spending the money.</p>
+      </div>
+    </div>
+    <p class="text-sm text-on-surface-variant mb-5">
+      <span id="withdrawAmountText" class="font-bold text-on-surface"></span> will be removed from this goal and added back to your Available Balance.
+    </p>
+    <div class="flex gap-3">
+      <button type="button" onclick="closeWithdrawConfirm()" class="flex-1 py-2.5 rounded-xl border border-outline-variant text-on-surface-variant hover:bg-surface-container-high transition-all font-bold text-sm">Cancel</button>
+      <button type="button" onclick="proceedWithdraw()" class="flex-1 bg-primary text-on-primary py-2.5 rounded-xl font-bold hover:brightness-110 transition-all text-sm">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Transaction -->
+<div id="editTxnModal" class="modal-overlay" onclick="if(event.target===this)closeEditTxn()">
+  <div class="modal-box p-6" style="max-width:400px;">
+    <div class="flex items-center gap-3 mb-4">
+      <div id="editTxnIconWrap" class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0">
+        <span id="editTxnIcon" class="material-symbols-outlined" style="font-size:18px;">arrow_upward</span>
+      </div>
+      <div>
+        <h2 class="font-extrabold text-base">Edit <span id="editTxnTypeLabel">Deposit</span></h2>
+        <p class="text-xs text-on-surface-variant mt-0.5">Type can't be changed — delete and re-add if it's wrong.</p>
+      </div>
+    </div>
+    <form id="editTxnForm" onsubmit="return submitEditTxn(event)" class="flex flex-col gap-3">
+      <div>
+        <label class="form-label">Amount</label>
+        <input type="number" step="0.01" id="editTxnAmount" required class="minp">
+        <p class="field-error-text" id="editTxnError"></p>
+      </div>
+      <div>
+        <label class="form-label">Reason <span class="normal-case font-normal text-on-surface-variant/60">(optional)</span></label>
+        <input type="text" id="editTxnNote" maxlength="255" placeholder="What's this for?" class="minp minp-note">
+      </div>
+      <div class="flex gap-3 pt-1">
+        <button type="button" onclick="closeEditTxn()" class="flex-1 py-2.5 rounded-xl border border-outline-variant text-on-surface-variant hover:bg-surface-container-high transition-all font-bold text-sm">Cancel</button>
+        <button type="submit" class="flex-1 bg-primary text-on-primary py-2.5 rounded-xl font-bold hover:brightness-110 transition-all text-sm">Save Changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Delete Transaction confirm -->
+<div id="deleteTxnModal" class="modal-overlay" onclick="if(event.target===this)closeDeleteTxn()">
+  <div class="modal-box p-6" style="max-width:380px;">
+    <div class="flex items-center gap-3 mb-4">
+      <div class="w-10 h-10 rounded-xl bg-error/10 flex items-center justify-center flex-shrink-0">
+        <span class="material-symbols-outlined text-error" style="font-size:20px;">delete</span>
+      </div>
+      <div>
+        <h2 class="font-extrabold text-base">Delete transaction?</h2>
+        <p class="text-xs text-on-surface-variant mt-0.5">This action cannot be undone.</p>
+      </div>
+    </div>
+    <p class="text-sm text-on-surface-variant mb-5">
+      <span id="deleteTxnSummary" class="font-bold text-on-surface"></span> will be removed from this goal's history and its amount will be reversed.
+    </p>
+    <div class="flex gap-3">
+      <button type="button" onclick="closeDeleteTxn()" class="flex-1 py-2.5 rounded-xl border border-outline-variant text-on-surface-variant hover:bg-surface-container-high transition-all font-bold text-sm">Cancel</button>
+      <button type="button" onclick="confirmDeleteTxn()" class="flex-1 bg-red-500/90 text-white py-2.5 rounded-xl font-bold hover:bg-red-500 transition-all text-sm">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function fmt(v) { return '₹' + Number(v).toLocaleString('en-IN', { maximumFractionDigits: 0 }); }
+
+function setSavingsMode(mode) {
+  const depositForm = document.getElementById('depositForm');
+  const withdrawForm = document.getElementById('withdrawForm');
+  const depositBtn = document.getElementById('depositToggleBtn');
+  const withdrawBtn = document.getElementById('withdrawToggleBtn');
+  if (mode === 'withdraw') {
+    depositForm.style.display = 'none'; withdrawForm.style.display = 'flex';
+    depositBtn.classList.remove('active-deposit'); withdrawBtn.classList.add('active-withdraw');
+  } else {
+    withdrawForm.style.display = 'none'; depositForm.style.display = 'flex';
+    withdrawBtn.classList.remove('active-withdraw'); depositBtn.classList.add('active-deposit');
+  }
+}
+
+function openCloseConfirm() {
+  const reserved = {{ goal.current }};
+  const body = document.getElementById('closeModalBody');
+  if (reserved > 0) {
+    body.textContent = 'You still have ' + fmt(reserved) + ' reserved. It will be returned to your Available Balance and this goal will move to Closed.';
+  } else {
+    body.textContent = 'This goal has no money reserved. It will move to Closed and can be restored later.';
+  }
+  document.getElementById('closeModal').classList.add('open');
+}
+function closeCloseConfirm() { document.getElementById('closeModal').classList.remove('open'); }
+
+// ── Pulse a value / tile briefly whenever a mutation updates it ──────────
+function pulseText(el) { if (!el) return; el.classList.remove('value-pulse'); void el.offsetWidth; el.classList.add('value-pulse'); }
+function flashTile(el) { if (!el) return; el.classList.remove('tile-flash'); void el.offsetWidth; el.classList.add('tile-flash'); }
+
+// ── Apply a goal summary (ring/percent/stat tiles/milestone/status) ──────
+// Same JSON shape whether it came from a deposit, withdraw, edit, or
+// delete — every mutation route returns build_goal_summary() output, so
+// this one function is the single place that reflects a new goal state
+// into the DOM.
+function applyGoalUpdate(g) {
+  const ring = document.getElementById('ringFill');
+  const circumference = 402.1;
+  ring.setAttribute('stroke-dasharray', ((g.bar_width / 100) * circumference).toFixed(1) + ' ' + circumference);
+
+  const percentEl = document.getElementById('percentText');
+  percentEl.textContent = g.percent + '%';
+  pulseText(percentEl);
+
+  const motivationEl = document.getElementById('motivationText');
+  motivationEl.textContent = g.motivation_text;
+  motivationEl.className = 'text-sm font-bold mb-4 ' + g.motivation_class;
+  pulseText(motivationEl);
+
+  const statusEl = document.getElementById('statusBadge');
+  const badgeMap = {
+    target_reached: '<span class="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg bg-amber-400/10 text-amber-400">✔ Target Reached</span>',
+    overdue: '<span class="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg bg-error/10 text-error">⚠ Overdue</span>',
+    closed: '<span class="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg bg-on-surface-variant/10 text-on-surface-variant">Closed</span>',
+    in_progress: '<span class="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg bg-primary/10 text-primary">In Progress</span>',
+  };
+  statusEl.innerHTML = badgeMap[g.status] || badgeMap.in_progress;
+
+  document.getElementById('statReserved').textContent = fmt(g.current);
+  document.getElementById('statRemaining').textContent = fmt(g.remaining);
+  document.getElementById('statProgress').textContent = g.percent + '%';
+  flashTile(document.getElementById('tileReserved'));
+  flashTile(document.getElementById('tileRemaining'));
+  flashTile(document.getElementById('tileProgress'));
+
+  const monthlyLine = document.getElementById('monthlyNeededLine');
+  if (g.monthly_needed !== null && g.monthly_needed !== undefined) {
+    monthlyLine.textContent = '≈ ' + fmt(g.monthly_needed) + '/month needed';
+    monthlyLine.style.display = 'block';
+  } else {
+    monthlyLine.style.display = 'none';
+  }
+
+  const milestoneBlock = document.getElementById('milestoneBlock');
+  if (g.next_milestone) {
+    document.getElementById('milestoneText').textContent = fmt(g.next_milestone.amount) + ' more to reach ' + g.next_milestone.pct + '%';
+    milestoneBlock.style.display = 'flex';
+  } else {
+    milestoneBlock.style.display = 'none';
+  }
+
+  const paceLine = document.getElementById('paceMessageLine');
+  if (g.status === 'in_progress' && g.pace_message) {
+    document.getElementById('paceMessageText').textContent = g.pace_message;
+    paceLine.style.display = 'block';
+  } else {
+    paceLine.style.display = 'none';
+  }
+}
+
+function clearFieldError(inputId, errorId) {
+  document.getElementById(inputId)?.classList.remove('field-error');
+  const err = document.getElementById(errorId);
+  if (err) { err.textContent = ''; err.classList.remove('show'); }
+}
+function setFieldError(inputId, errorId, message) {
+  document.getElementById(inputId)?.classList.add('field-error');
+  const err = document.getElementById(errorId);
+  if (err) { err.textContent = message; err.classList.add('show'); }
+}
+
+// ── Deposit — submits directly via fetch ──────────────────────────────────
+function submitSavings(e, mode) {
+  e.preventDefault();
+  const form = e.target;
+  postSavings(form, mode);
+  return false;
+}
+
+function postSavings(form, mode) {
+  const inputId = mode === 'deposit' ? 'depositAmountInput' : 'withdrawAmountInput';
+  const errorId = mode === 'deposit' ? 'depositError' : 'withdrawError';
+  clearFieldError(inputId, errorId);
+
+  const fd = new FormData(form);
+  fetch('/update-goal/{{ goal.id }}', {
+    method: 'POST', body: fd,
+    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+  })
+    .then(r => r.json().then(data => ({ ok: r.ok, data })))
+    .then(({ ok, data }) => {
+      if (ok && data.success) {
+        applyGoalUpdate(data.goal);
+        showToast(data.message, 'success');
+        form.reset();
+        loadTimeline();
+      } else {
+        setFieldError(inputId, errorId, data.error || 'Something went wrong.');
+        showToast(data.error || 'Something went wrong.', 'error');
+      }
+    })
+    .catch(() => showToast("Couldn't reach the server — try again.", 'error'));
+}
+
+let pendingWithdrawForm = null;
+function confirmWithdraw(e) {
+  e.preventDefault();
+  const form = e.target;
+  clearFieldError('withdrawAmountInput', 'withdrawError');
+  const amount = parseFloat(form.querySelector('[name="added_amount"]').value || 0);
+  if (!amount || amount <= 0) { setFieldError('withdrawAmountInput', 'withdrawError', 'Enter an amount greater than zero.'); return false; }
+  pendingWithdrawForm = form;
+  document.getElementById('withdrawAmountText').textContent = fmt(amount);
+  document.getElementById('withdrawModal').classList.add('open');
+  return false;
+}
+function closeWithdrawConfirm() { document.getElementById('withdrawModal').classList.remove('open'); pendingWithdrawForm = null; }
+function proceedWithdraw() {
+  if (pendingWithdrawForm) postSavings(pendingWithdrawForm, 'withdraw');
+  closeWithdrawConfirm();
+}
+
+// ── Transaction kebab menu ────────────────────────────────────────────────
+function toggleTxnMenu(e, id) {
+  e.preventDefault(); e.stopPropagation();
+  const menu = document.getElementById('txnMenu-' + id);
+  const btn = e.currentTarget;
+  const isOpen = menu.classList.contains('open');
+  closeAllTxnMenus();
+  if (!isOpen) { menu.classList.add('open'); btn.classList.add('menu-open'); }
+}
+function closeAllTxnMenus() {
+  document.querySelectorAll('.txn-menu.open').forEach(m => m.classList.remove('open'));
+  document.querySelectorAll('.txn-menu-btn.menu-open').forEach(b => b.classList.remove('menu-open'));
+}
+document.addEventListener('click', closeAllTxnMenus);
+
+// Data comes off data-* attributes rather than being inlined into the
+// onclick string — a note containing an apostrophe or quote would otherwise
+// break out of the handler string (HTML entities in an attribute are
+// decoded *before* the JS parser ever sees them, so entity-escaping alone
+// doesn't protect a quoted JS literal embedded in onclick).
+function handleEditTxnClick(btn) {
+  openEditTxn(parseInt(btn.dataset.id, 10), parseFloat(btn.dataset.amount), btn.dataset.note, btn.dataset.deposit === 'true');
+}
+function handleDeleteTxnClick(btn) {
+  openDeleteTxn(parseInt(btn.dataset.id, 10), btn.dataset.summary);
+}
+
+// ── Edit transaction ───────────────────────────────────────────────────────
+let editTxnId = null;
+function openEditTxn(id, amountAbs, note, isDeposit) {
+  closeAllTxnMenus();
+  editTxnId = id;
+  clearFieldError('editTxnAmount', 'editTxnError');
+  document.getElementById('editTxnAmount').value = amountAbs;
+  document.getElementById('editTxnNote').value = note || '';
+  document.getElementById('editTxnTypeLabel').textContent = isDeposit ? 'Deposit' : 'Withdrawal';
+  document.getElementById('editTxnIconWrap').style.background = isDeposit ? 'rgba(78,222,163,.12)' : 'rgba(248,113,113,.12)';
+  const iconEl = document.getElementById('editTxnIcon');
+  iconEl.textContent = isDeposit ? 'arrow_upward' : 'arrow_downward';
+  iconEl.className = 'material-symbols-outlined ' + (isDeposit ? 'text-primary' : 'text-error');
+  iconEl.style.fontSize = '18px';
+  document.getElementById('editTxnModal').classList.add('open');
+}
+function closeEditTxn() { document.getElementById('editTxnModal').classList.remove('open'); editTxnId = null; }
+function submitEditTxn(e) {
+  e.preventDefault();
+  clearFieldError('editTxnAmount', 'editTxnError');
+  const amount = document.getElementById('editTxnAmount').value;
+  const note = document.getElementById('editTxnNote').value;
+  const fd = new FormData();
+  fd.append('amount', amount);
+  fd.append('note', note);
+  fetch('/api/goals/{{ goal.id }}/contributions/' + editTxnId + '/edit', {
+    method: 'POST', body: fd,
+    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+  })
+    .then(r => r.json().then(data => ({ ok: r.ok, data })))
+    .then(({ ok, data }) => {
+      if (ok && data.success) {
+        applyGoalUpdate(data.goal);
+        showToast(data.message, 'success');
+        closeEditTxn();
+        loadTimeline();
+      } else {
+        setFieldError('editTxnAmount', 'editTxnError', data.error || 'Something went wrong.');
+      }
+    })
+    .catch(() => showToast("Couldn't reach the server — try again.", 'error'));
+  return false;
+}
+
+// ── Delete transaction ──────────────────────────────────────────────────
+let deleteTxnId = null;
+function openDeleteTxn(id, summary) {
+  closeAllTxnMenus();
+  deleteTxnId = id;
+  document.getElementById('deleteTxnSummary').textContent = summary;
+  document.getElementById('deleteTxnModal').classList.add('open');
+}
+function closeDeleteTxn() { document.getElementById('deleteTxnModal').classList.remove('open'); deleteTxnId = null; }
+function confirmDeleteTxn() {
+  if (deleteTxnId === null) return;
+  fetch('/api/goals/{{ goal.id }}/contributions/' + deleteTxnId + '/delete', {
+    method: 'POST',
+    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+  })
+    .then(r => r.json().then(data => ({ ok: r.ok, data })))
+    .then(({ ok, data }) => {
+      if (ok && data.success) {
+        applyGoalUpdate(data.goal);
+        showToast(data.message, 'success');
+        loadTimeline();
+      } else {
+        showToast(data.error || 'Something went wrong.', 'error');
+      }
+      closeDeleteTxn();
+    })
+    .catch(() => { showToast("Couldn't reach the server — try again.", 'error'); closeDeleteTxn(); });
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeCloseConfirm(); closeWithdrawConfirm(); closeEditTxn(); closeDeleteTxn(); closeAllTxnMenus(); }
+});
+
+// ── Activity timeline — banking-style, grouped by day, editable rows ─────
+function loadTimeline() {
+  const list = document.getElementById('timelineList');
+  fetch('/goals/{{ goal.id }}/history')
+    .then(r => r.json())
+    .then(data => {
+      const items = data.history || [];
+      if (!items.length) {
+        list.innerHTML = '<p class="text-xs text-on-surface-variant/60 py-2">No activity yet — deposits and withdrawals will show up here.</p>';
+        return;
+      }
+      // Group consecutive entries under a shared "Today" / "Yesterday" / date
+      // heading — items already arrive newest-first, so same-day rows are
+      // always adjacent and a heading only needs to print when day_label changes.
+      // Per-row timestamp reuses day_label + time: "Today • 2:31 PM" for
+      // recent entries, "3 Aug 2026 • 10:11 PM" once the day heading alone
+      // is no longer enough context on its own.
+      let html = '';
+      let lastLabel = null;
+      items.forEach(item => {
+        const isDeposit = item.amount >= 0;
+        const magnitude = Math.abs(item.amount);
+        const sign = isDeposit ? '+' : '−';
+        const colorClass = isDeposit ? 'text-primary' : 'text-error';
+        const iconBg = isDeposit ? 'background:rgba(78,222,163,.10);' : 'background:rgba(248,113,113,.10);';
+        const icon = isDeposit ? 'arrow_upward' : 'arrow_downward';
+        const label = isDeposit ? 'Deposit' : 'Withdrawal';
+        // No "Reason" label — a note is supporting text, not a second
+        // heading. Nothing renders at all (no placeholder, no reserved
+        // space) when a transaction has none, so the row stays short.
+        const noteLine = item.note ? '<p class="timeline-note-text truncate">' + escapeHtml(item.note) + '</p>' : '';
+        const summaryText = label + ' ' + fmt(magnitude);
+
+        if (item.day_label !== lastLabel) {
+          html += '<p class="timeline-day-heading' +
+                  (lastLabel === null ? ' mb-1.5' : ' mt-3.5 mb-1.5') + '">' + escapeHtml(item.day_label) + '</p>';
+          lastLabel = item.day_label;
+        }
+
+        html += '<div class="timeline-item group">' +
+                 '<span class="timeline-icon ' + colorClass + '" style="' + iconBg + '"><span class="material-symbols-outlined" style="font-size:12px;">' + icon + '</span></span>' +
+                 '<div class="flex-1 min-w-0">' +
+                   '<div class="flex items-baseline justify-between gap-2">' +
+                     '<p class="text-sm text-on-surface font-semibold truncate">' + label + '</p>' +
+                     '<span class="text-sm font-extrabold flex-shrink-0 tabular-nums ' + colorClass + '">' + sign + fmt(magnitude) + '</span>' +
+                   '</div>' +
+                   '<p class="text-[11.5px] text-on-surface-variant/70 mt-0.5">' + escapeHtml(item.day_label) + ' • ' + escapeHtml(item.time) + '</p>' +
+                   noteLine +
+                 '</div>' +
+                 '<div class="relative flex-shrink-0">' +
+                   '<button type="button" class="txn-menu-btn" onclick="toggleTxnMenu(event, ' + item.id + ')" title="More actions" aria-label="Transaction actions">' +
+                     '<span class="material-symbols-outlined" style="font-size:16px;">more_vert</span>' +
+                   '</button>' +
+                   '<div class="txn-menu" id="txnMenu-' + item.id + '">' +
+                     '<button type="button" data-id="' + item.id + '" data-amount="' + magnitude + '" data-note="' + escapeHtml(item.note || '') + '" data-deposit="' + isDeposit + '" onclick="handleEditTxnClick(this)"><span class="material-symbols-outlined" style="font-size:14px;">edit</span> Edit</button>' +
+                     '<button type="button" class="danger" data-id="' + item.id + '" data-summary="' + escapeHtml(summaryText) + '" onclick="handleDeleteTxnClick(this)"><span class="material-symbols-outlined" style="font-size:14px;">delete</span> Delete</button>' +
+                   '</div>' +
+                 '</div>' +
+               '</div>';
+      });
+      list.innerHTML = html;
+    })
+    .catch(() => { list.innerHTML = '<p class="text-xs text-error py-2">Couldn\'t load activity — try reloading the page.</p>'; });
+}
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str == null ? '' : String(str);
+  return div.innerHTML;
+}
+loadTimeline();
+
+function showToast(message, type) {
+  const toast = document.getElementById('toast');
+  const icon  = document.getElementById('toastIcon');
+  document.getElementById('toastMsg').textContent = message;
+  icon.textContent = type === 'error' ? 'error' : 'check_circle';
+  icon.className = 'material-symbols-outlined ' + (type === 'error' ? 'text-error' : 'text-primary');
+  icon.style.fontSize = '16px';
+  toast.style.opacity = '1';
+  setTimeout(() => { toast.style.opacity = '0'; }, 3200);
+}
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+      showToast("{{ message }}", "{{ 'error' if category == 'error' else 'success' }}");
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+</script>
+</body>
+</html>

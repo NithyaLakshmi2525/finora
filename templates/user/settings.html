@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Settings | Finora</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/npm/geist@1.3.0/dist/fonts/geist.min.css" rel="stylesheet"/>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          "surface-dim":            "#10141a",
+          "background":             "#10141a",
+          "surface-container-low":  "#181c22",
+          "on-primary":             "#003824",
+          "primary-container":      "#10b981",
+          "surface-container":      "#1c2026",
+          "on-primary-container":   "#00422b",
+          "primary":                "#4edea3",
+          "on-surface":             "#dfe2eb",
+          "on-surface-variant":     "#bbcabf",
+          "surface-variant":        "#31353c",
+          "outline-variant":        "#3c4a42",
+          "outline":                "#86948a",
+          "surface":                "#10141a",
+          "surface-container-high": "#262a31",
+          "secondary":              "#adc6ff",
+          "error":                  "#ffb4ab",
+        },
+        fontFamily: {
+          sans:    ["Geist", "Inter", "sans-serif"],
+          display: ["Geist", "sans-serif"],
+        },
+      },
+    },
+  }
+</script>
+<style>
+  html { color-scheme: dark; }
+  body { font-family:'Geist',sans-serif; background:#10141a; color:#dfe2eb; -webkit-font-smoothing:antialiased; }
+  .material-symbols-outlined { font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; }
+
+  .nav-link { display:flex; align-items:center; gap:10px; padding:9px 14px; border-radius:10px; color:#bbcabf; text-decoration:none; font-size:14px; font-weight:500; transition:background .15s,color .15s; }
+  .nav-link:hover  { background:#1c2026; color:#dfe2eb; }
+  .nav-link.active { background:#1c2026; color:#4edea3; }
+
+  ::-webkit-scrollbar { width:5px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:#3c4a42; border-radius:3px; }
+
+  .inp, select.inp {
+    background:#10141a !important;
+    border:1px solid #3c4a42;
+    border-radius:10px;
+    padding:10px 14px;
+    color:#dfe2eb !important;
+    font-size:14px;
+    transition:border-color .15s;
+    width:100%;
+    color-scheme:dark;
+    -webkit-appearance:none;
+    appearance:none;
+  }
+  .inp:focus { outline:none; border-color:#4edea3; box-shadow:0 0 0 3px rgba(78,222,163,.12); }
+  .inp::placeholder { color:#86948a; }
+  select.inp {
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2386948a' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;
+    background-position:right 14px center;
+    padding-right:38px;
+    cursor:pointer;
+  }
+  select.inp option { background:#1c2026; color:#dfe2eb; }
+
+  /* Settings side-nav */
+  .settings-nav-link { display:flex; align-items:center; gap:9px; padding:10px 16px; font-size:13px; font-weight:600; color:#bbcabf; text-decoration:none; border-left:2px solid transparent; transition:all .15s; }
+  .settings-nav-link:hover { color:#dfe2eb; background:rgba(255,255,255,.03); }
+  .settings-nav-link.active { color:#4edea3; border-color:#4edea3; background:rgba(78,222,163,.06); }
+
+  /* Toggle switch */
+  .toggle-switch { position:relative; width:42px; height:23px; flex-shrink:0; display:inline-block; }
+  .toggle-switch input { opacity:0; width:0; height:0; }
+  .toggle-slider { position:absolute; inset:0; background:#3c4a42; border-radius:24px; cursor:pointer; transition:background .2s; }
+  .toggle-slider::before { content:''; position:absolute; width:17px; height:17px; left:3px; top:3px; background:white; border-radius:50%; transition:transform .2s; }
+  .toggle-switch input:checked + .toggle-slider { background:#4edea3; }
+  .toggle-switch input:checked + .toggle-slider::before { transform:translateX(19px); }
+</style>
+</head>
+<body class="bg-surface text-on-surface min-h-screen">
+
+<div class="flex min-h-screen">
+
+  {% include 'partials/sidebar.html' %}
+
+  <!-- ═══════════════════ MAIN ═══════════════════ -->
+  <main class="flex-1 overflow-y-auto min-w-0">
+    {% include 'partials/mobile_topbar.html' %}
+    <div class="max-w-5xl mx-auto px-7 py-8">
+
+      <div class="mb-7">
+        <h1 class="text-[22px] font-extrabold tracking-tight leading-tight">Settings</h1>
+        <p class="text-on-surface-variant text-sm mt-0.5">Customize how Finora looks and works for you.</p>
+      </div>
+
+      <div class="flex gap-5 items-start">
+
+        <!-- ════ LEFT — Settings sub-nav (sticky) ════ -->
+        <div class="w-52 flex-shrink-0 hidden lg:block">
+          <div class="bg-surface-container border border-outline-variant rounded-2xl overflow-hidden sticky top-8">
+            <a href="#display-name" class="settings-nav-link active" data-target="display-name"><span class="material-symbols-outlined" style="font-size:15px;">badge</span>Display Name</a>
+            <a href="#budget" class="settings-nav-link" data-target="budget"><span class="material-symbols-outlined" style="font-size:15px;">account_balance_wallet</span>Budget</a>
+            <a href="#notifications" class="settings-nav-link" data-target="notifications"><span class="material-symbols-outlined" style="font-size:15px;">notifications</span>Notifications</a>
+            <a href="#export" class="settings-nav-link" data-target="export"><span class="material-symbols-outlined" style="font-size:15px;">download</span>Export</a>
+            <a href="/profile" class="settings-nav-link" style="border-top:1px solid #3c4a42;"><span class="material-symbols-outlined" style="font-size:15px;">shield</span>Security</a>
+          </div>
+        </div><!-- /LEFT -->
+
+        <!-- ════ RIGHT — Sections ════ -->
+        <div class="flex-1 min-w-0 flex flex-col gap-5">
+
+          <!-- Display Name -->
+          <div id="display-name" class="bg-surface-container border border-outline-variant rounded-2xl overflow-hidden">
+            <div class="flex items-center gap-2 px-5 py-3.5 border-b border-outline-variant">
+              <span class="material-symbols-outlined text-primary" style="font-size:17px;">badge</span>
+              <div>
+                <h2 class="text-sm font-bold">Display Name</h2>
+                <p class="text-xs text-on-surface-variant">Shown in the sidebar and across the app</p>
+              </div>
+            </div>
+            <form action="/settings" method="POST" class="p-5 flex flex-col gap-4">
+              <div>
+                <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Display Name</label>
+                <input type="text" name="display_name" value="{{ display_name }}" required maxlength="40" placeholder="Your name" class="inp"/>
+                <p class="text-xs text-on-surface-variant mt-1.5">Up to 40 characters. No effect on your login username.</p>
+              </div>
+              <div>
+                <button type="submit" class="bg-primary text-on-primary px-5 py-2.5 rounded-xl font-bold hover:brightness-110 active:scale-95 transition-all text-sm shadow-lg shadow-primary/15">
+                  Save Name
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Budget -->
+          <div id="budget" class="bg-surface-container border border-outline-variant rounded-2xl overflow-hidden">
+            <div class="flex items-center gap-2 px-5 py-3.5 border-b border-outline-variant">
+              <span class="material-symbols-outlined text-primary" style="font-size:17px;">account_balance_wallet</span>
+              <div>
+                <h2 class="text-sm font-bold">Monthly Budget</h2>
+                <p class="text-xs text-on-surface-variant">Set your spending limit for the month</p>
+              </div>
+            </div>
+            <form action="/settings" method="POST" class="p-5">
+              <div class="flex gap-3 items-end flex-wrap">
+                <div class="flex-1 min-w-[180px]">
+                  <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Monthly Limit (₹)</label>
+                  <input type="number" name="budget" step="100" min="0"
+                         value="{{ current_budget if current_budget is not none else '' }}"
+                         placeholder="e.g. 20000" class="inp"/>
+                </div>
+                <button type="submit" class="bg-primary text-on-primary px-5 py-2.5 rounded-xl font-bold hover:brightness-110 active:scale-95 transition-all text-sm shadow-lg shadow-primary/15 whitespace-nowrap">
+                  Save
+                </button>
+              </div>
+              <p class="text-xs text-on-surface-variant mt-2.5">This is the same budget shown on your Dashboard and Recurring pages.</p>
+            </form>
+          </div>
+
+          <!-- Notifications — NOW WIRED TO BACKEND -->
+          <div id="notifications" class="bg-surface-container border border-outline-variant rounded-2xl overflow-hidden">
+            <div class="flex items-center gap-2 px-5 py-3.5 border-b border-outline-variant">
+              <span class="material-symbols-outlined text-primary" style="font-size:17px;">notifications</span>
+              <div>
+                <h2 class="text-sm font-bold">Notifications</h2>
+                <p class="text-xs text-on-surface-variant">Choose what alerts you want to see</p>
+              </div>
+            </div>
+            <form action="/settings" method="POST" class="p-5 flex flex-col divide-y divide-outline-variant">
+              <input type="hidden" name="notif_prefs_submitted" value="1">
+
+              <div class="flex items-center justify-between gap-4 pb-3.5">
+                <div>
+                  <p class="text-sm font-semibold">Budget alerts</p>
+                  <p class="text-xs text-on-surface-variant mt-0.5">Warn me when I'm approaching my monthly limit</p>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" name="budget_alerts" {% if notif_prefs.budget_alerts %}checked{% endif %}>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="flex items-center justify-between gap-4 py-3.5">
+                <div>
+                  <p class="text-sm font-semibold">Recurring reminders</p>
+                  <p class="text-xs text-on-surface-variant mt-0.5">Notify me when a recurring item is auto-charged or marked as paid</p>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" name="recurring_reminders" {% if notif_prefs.recurring_reminders %}checked{% endif %}>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="flex items-center justify-between gap-4 pt-3.5 pb-4">
+                <div>
+                  <p class="text-sm font-semibold">Goal milestones</p>
+                  <p class="text-xs text-on-surface-variant mt-0.5">Notify me when I reach 25%, 50%, 75% or 100% of a goal</p>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" name="goal_milestones" {% if notif_prefs.goal_milestones %}checked{% endif %}>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+
+              <div class="pt-4">
+                <button type="submit" class="bg-primary text-on-primary px-5 py-2.5 rounded-xl font-bold hover:brightness-110 active:scale-95 transition-all text-sm shadow-lg shadow-primary/15">
+                  Save Notification Settings
+                </button>
+              </div>
+              <p class="text-xs text-on-surface-variant/70 pt-3.5">Notifications appear in the bell icon in your sidebar. Each toggle above controls whether that category of alert is generated for you.</p>
+            </form>
+          </div>
+
+          <!-- Export -->
+          <div id="export" class="bg-surface-container border border-outline-variant rounded-2xl overflow-hidden">
+            <div class="flex items-center gap-2 px-5 py-3.5 border-b border-outline-variant">
+              <span class="material-symbols-outlined text-primary" style="font-size:17px;">download</span>
+              <div>
+                <h2 class="text-sm font-bold">Export Data</h2>
+                <p class="text-xs text-on-surface-variant">Download your financial data</p>
+              </div>
+            </div>
+            <div class="p-5 flex flex-col gap-4">
+              <p class="text-sm text-on-surface-variant">Export all your expenses as a CSV file, or a PDF summary report.</p>
+              <div class="flex gap-3 flex-wrap">
+                <a href="/export" class="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-outline-variant text-on-surface hover:bg-surface-container-high transition-all font-bold text-sm">
+                  <span class="material-symbols-outlined" style="font-size:16px;">description</span>Export CSV
+                </a>
+                <a href="/export-pdf" class="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-outline-variant text-on-surface hover:bg-surface-container-high transition-all font-bold text-sm">
+                  <span class="material-symbols-outlined" style="font-size:16px;">picture_as_pdf</span>Export PDF Report
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <!-- Security shortcut -->
+          <div class="bg-surface-container border border-outline-variant rounded-2xl overflow-hidden">
+            <div class="flex items-center gap-2 px-5 py-3.5 border-b border-outline-variant">
+              <span class="material-symbols-outlined text-primary" style="font-size:17px;">shield</span>
+              <div>
+                <h2 class="text-sm font-bold">Security</h2>
+                <p class="text-xs text-on-surface-variant">Password and account safety</p>
+              </div>
+            </div>
+            <div class="p-5 flex flex-col gap-4">
+              <p class="text-sm text-on-surface-variant">Change your password or manage account deletion from your Profile page.</p>
+              <a href="/profile" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-outline-variant text-on-surface hover:bg-surface-container-high transition-all font-bold text-sm w-fit">
+                <span class="material-symbols-outlined" style="font-size:16px;">lock</span>Go to Profile & Security
+              </a>
+            </div>
+          </div>
+
+        </div><!-- /RIGHT -->
+      </div><!-- /body -->
+    </div>
+  </main>
+</div>
+
+<!-- ═══════════ TOAST ═══════════ -->
+<div id="toast"
+  class="fixed bottom-6 right-6 bg-surface-container-high border border-outline-variant text-on-surface text-sm font-semibold px-5 py-3 rounded-xl shadow-2xl z-50 flex items-center gap-2.5 opacity-0 pointer-events-none transition-opacity duration-200">
+  <span class="material-symbols-outlined text-primary" style="font-size:16px;" id="toastIcon">info</span>
+  <span id="toastMsg"></span>
+</div>
+
+<script>
+function showToast(msg, type) {
+  const t = document.getElementById('toast');
+  const icon = document.getElementById('toastIcon');
+  document.getElementById('toastMsg').textContent = msg;
+  icon.textContent = (type === 'error') ? 'error' : 'check_circle';
+  icon.className = (type === 'error') ? 'material-symbols-outlined text-red-400' : 'material-symbols-outlined text-primary';
+  icon.style.fontSize = '16px';
+  t.style.opacity = '1';
+  setTimeout(() => { t.style.opacity = '0'; }, 3200);
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
+});
+
+/* Highlight active settings-nav link on scroll */
+const sections = document.querySelectorAll('#display-name, #budget, #notifications, #export');
+const settingsNavLinks = document.querySelectorAll('.settings-nav-link[data-target]');
+window.addEventListener('scroll', () => {
+  let current = '';
+  sections.forEach(s => { if (window.scrollY >= s.offsetTop - 140) current = s.id; });
+  settingsNavLinks.forEach(a => a.classList.toggle('active', a.dataset.target === current));
+}, { passive: true });
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}{% for category, message in messages %}showToast("{{ message }}", "{{ category }}");{% endfor %}{% endif %}
+{% endwith %}
+</script>
+</body>
+</html>

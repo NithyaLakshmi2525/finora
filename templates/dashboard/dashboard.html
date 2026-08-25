@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Dashboard | Finora</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/npm/geist@1.3.0/dist/fonts/geist.min.css" rel="stylesheet"/>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          "surface-dim":            "#10141a",
+          "background":             "#10141a",
+          "surface-container-low":  "#181c22",
+          "on-primary":             "#003824",
+          "primary-container":      "#10b981",
+          "surface-container":      "#1c2026",
+          "on-primary-container":   "#00422b",
+          "primary":                "#4edea3",
+          "on-surface":             "#dfe2eb",
+          "on-surface-variant":     "#bbcabf",
+          "surface-variant":        "#31353c",
+          "outline-variant":        "#3c4a42",
+          "outline":                "#86948a",
+          "surface":                "#10141a",
+          "surface-container-high": "#262a31",
+          "secondary":              "#adc6ff",
+          "error":                  "#f87171",
+        },
+        fontFamily: {
+          sans:    ["Geist", "Inter", "sans-serif"],
+          display: ["Geist", "sans-serif"],
+        },
+      },
+    },
+  }
+</script>
+<style>
+  html { color-scheme: dark; }
+  body { font-family:'Geist',sans-serif; background:#10141a; color:#dfe2eb; -webkit-font-smoothing:antialiased; }
+  .material-symbols-outlined { font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; }
+
+  /* ── Sidebar nav ── */
+  .nav-link { display:flex; align-items:center; gap:10px; padding:9px 14px; border-radius:10px; color:#bbcabf; text-decoration:none; font-size:14px; font-weight:500; transition:background .15s,color .15s; }
+  .nav-link:hover  { background:#1c2026; color:#dfe2eb; }
+  .nav-link.active { background:#1c2026; color:#4edea3; }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width:5px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:#3c4a42; border-radius:3px; }
+
+  /* ── Progress bar ── */
+  .prog-track { height:4px; background:#3c4a42; border-radius:2px; overflow:hidden; }
+  .prog-fill  { height:100%; background:linear-gradient(90deg,#4edea3,#adc6ff); border-radius:2px; transition:width .6s ease; }
+
+  /* ── Recent expense table ── */
+  .exp-table { width:100%; border-collapse:collapse; }
+  .exp-table thead th { text-align:left; font-size:11px; font-weight:700; color:#86948a; text-transform:uppercase; letter-spacing:.06em; padding:0 12px 12px; }
+  .exp-table tbody tr { border-top:1px solid #262a31; transition:background .12s; }
+  .exp-table tbody tr:hover { background:#181c22; }
+  .exp-table tbody td { padding:13px 12px; font-size:14px; }
+
+  /* ── Input ── */
+  .inp {
+    background:#10141a !important;
+    border:1px solid #3c4a42;
+    border-radius:10px;
+    padding:10px 14px;
+    color:#dfe2eb !important;
+    font-size:14px;
+    transition:border-color .15s;
+    width:100%;
+    color-scheme:dark;
+  }
+  .inp:focus { outline:none; border-color:#4edea3; box-shadow:0 0 0 3px rgba(78,222,163,.12); }
+  .inp::placeholder { color:#86948a; }
+
+  /* ── Category emoji badge ── */
+  .cat-badge { background:#1c2026; padding:3px 9px; border-radius:6px; font-size:12px; border:1px solid #3c4a42; font-weight:500; }
+
+  /* ── Insight row ── */
+  .insight-row { display:flex; align-items:flex-start; gap:10px; padding:11px 0; border-bottom:1px solid #262a31; }
+  .insight-row:last-child { border-bottom:none; padding-bottom:0; }
+</style>
+</head>
+<body class="bg-surface text-on-surface min-h-screen">
+
+<!-- ═══════════════════ TOAST ═══════════════════ -->
+<div id="toast"
+  class="fixed bottom-6 right-6 bg-surface-container-high border border-outline-variant text-on-surface text-sm font-semibold px-5 py-3 rounded-xl shadow-2xl z-50 flex items-center gap-2.5 opacity-0 pointer-events-none transition-opacity duration-200">
+  <span class="material-symbols-outlined text-primary" id="toastIcon" style="font-size:16px;">check_circle</span>
+  <span id="toastMsg"></span>
+</div>
+
+<div class="flex min-h-screen">
+
+  {% include 'partials/sidebar.html' %}
+
+  <!-- ═══════════════════ MAIN ═══════════════════ -->
+  <main class="flex-1 overflow-y-auto min-w-0">
+    {% include 'partials/mobile_topbar.html' %}
+    <div class="max-w-7xl mx-auto px-7 py-8">
+
+      <!-- ── Page Header ── -->
+      <div class="flex items-start justify-between mb-7 flex-wrap gap-4">
+        <div>
+          <p class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1">{{ greeting }}</p>
+          <h1 class="text-[24px] font-extrabold tracking-tight leading-tight">{{ display_name }} 👋</h1>
+          <p class="text-on-surface-variant text-sm mt-1">Here's your financial overview.</p>
+        </div>
+        <div class="flex items-center gap-3 flex-wrap">
+          {% if alert_message %}
+          <div class="flex items-center gap-2 bg-red-500/10 border border-red-500/25 text-red-300 text-xs font-semibold px-4 py-2 rounded-xl">
+            <span class="material-symbols-outlined" style="font-size:15px;">warning</span>
+            {{ alert_message }}
+          </div>
+          {% endif %}
+          <a href="/expenses"
+            class="flex items-center gap-2 bg-primary text-on-primary px-5 py-2.5 rounded-xl font-bold hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-primary/15 text-sm">
+            <span class="material-symbols-outlined" style="font-size:17px;">add</span>
+            Add Expense
+          </a>
+          <a href="/income"
+            class="flex items-center gap-2 border border-outline-variant text-on-surface px-5 py-2.5 rounded-xl font-bold hover:bg-surface-container-high transition-all text-sm">
+            <span class="material-symbols-outlined" style="font-size:17px;">trending_up</span>
+            Add Income
+          </a>
+        </div>
+      </div>
+
+      <!-- ── Lifetime Summary ── -->
+      <p class="text-xs font-bold text-on-surface-variant/70 uppercase tracking-widest mb-2.5">Lifetime Summary</p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+
+        <!-- Total Income -->
+        <a href="/income" class="bg-surface-container border border-outline-variant rounded-2xl p-5 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all group block">
+          <div class="flex items-center justify-between mb-3">
+            <p class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Total Income</p>
+            <div class="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/15 transition-colors">
+              <span class="material-symbols-outlined text-primary" style="font-size:16px;">trending_up</span>
+            </div>
+          </div>
+          <p class="text-[26px] font-extrabold text-primary leading-none">₹{{ "{:,.0f}".format(total_income) }}</p>
+          <p class="text-xs text-on-surface-variant mt-2">Lifetime earnings</p>
+        </a>
+
+        <!-- Total Spent -->
+        <a href="/expenses" class="bg-surface-container border border-outline-variant rounded-2xl p-5 hover:border-error/30 hover:shadow-lg hover:shadow-error/5 transition-all group block">
+          <div class="flex items-center justify-between mb-3">
+            <p class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Total Spent</p>
+            <div class="w-8 h-8 rounded-xl bg-error/10 flex items-center justify-center group-hover:bg-error/15 transition-colors">
+              <span class="material-symbols-outlined text-error" style="font-size:16px;">receipt_long</span>
+            </div>
+          </div>
+          <p class="text-[26px] font-extrabold leading-none
+            {% if budget_percentage >= 100 %}text-error
+            {% elif budget_percentage >= 80 %}text-yellow-400
+            {% else %}text-on-surface{% endif %}">
+            ₹{{ "{:,.0f}".format(total_spent) }}
+          </p>
+          <p class="text-xs text-on-surface-variant mt-2">Lifetime expenses</p>
+        </a>
+
+        <!-- Net Balance -->
+        <a href="/monthly-report" class="bg-surface-container border border-outline-variant rounded-2xl p-5 hover:border-secondary/30 hover:shadow-lg hover:shadow-secondary/5 transition-all group block">
+          <div class="flex items-center justify-between mb-3">
+            <p class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Net Balance</p>
+            <div class="w-8 h-8 rounded-xl bg-secondary/10 flex items-center justify-center group-hover:bg-secondary/15 transition-colors">
+              <span class="material-symbols-outlined text-secondary" style="font-size:16px;">account_balance</span>
+            </div>
+          </div>
+          <p class="text-[26px] font-extrabold leading-none {{ 'text-primary' if projected_position >= 0 else 'text-error' }}">
+            {% if projected_position < 0 %}−{% endif %}₹{{ "{:,.0f}".format(projected_position | abs) }}
+          </p>
+          <p class="text-xs text-on-surface-variant mt-2">Current balance</p>
+        </a>
+
+        <!-- All-Time Top Category -->
+        <a href="/expenses?search={% if top_category %}{{ top_category[0] }}{% endif %}" class="bg-surface-container border border-outline-variant rounded-2xl p-5 hover:border-outline/50 hover:shadow-lg transition-all group block">
+          <div class="flex items-center justify-between mb-3">
+            <p class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">All-Time Top Category</p>
+            <div class="w-8 h-8 rounded-xl bg-on-surface/5 flex items-center justify-center group-hover:bg-on-surface/10 transition-colors">
+              <span class="material-symbols-outlined text-on-surface-variant" style="font-size:16px;">category</span>
+            </div>
+          </div>
+          {% if top_category %}
+          <p class="text-[20px] font-extrabold leading-none text-on-surface">
+            {% if top_category[0]|lower == 'food' %}🍕
+            {% elif top_category[0]|lower == 'shopping' %}🛍️
+            {% elif top_category[0]|lower == 'travel' %}🚗
+            {% elif top_category[0]|lower == 'bills' %}🧾
+            {% elif top_category[0]|lower == 'entertainment' %}🎬
+            {% elif top_category[0]|lower == 'health' %}🏥
+            {% elif top_category[0]|lower == 'education' %}📚
+            {% elif top_category[0]|lower == 'repairs' %}🔧
+            {% else %}💰{% endif %}
+            {{ top_category[0] }}
+          </p>
+          <p class="text-xs text-on-surface-variant mt-2">₹{{ "{:,.0f}".format(top_category[1]) }} spent · {{ top_category[2] }} transaction{{ 's' if top_category[2] != 1 else '' }}</p>
+          {% else %}
+          <p class="text-[20px] font-extrabold leading-none text-on-surface-variant/40">—</p>
+          <p class="text-xs text-on-surface-variant mt-2">No expenses yet</p>
+          {% endif %}
+        </a>
+
+      </div>
+
+      <!-- ── This Month ── -->
+      <p class="text-xs font-bold text-on-surface-variant/70 uppercase tracking-widest mb-2.5">This Month</p>
+
+      <!-- ── Budget usage bar (full-width, contextual) ── -->
+      {% if budget and budget > 0 %}
+      <div class="bg-surface-container border border-outline-variant rounded-2xl p-5 mb-6">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-on-surface-variant" style="font-size:16px;">donut_large</span>
+            <p class="text-sm font-bold">Budget Usage</p>
+          </div>
+          <span class="text-sm font-extrabold {{ 'text-error' if budget_percentage >= 100 else ('text-yellow-400' if budget_percentage >= 80 else 'text-primary') }}">
+            {{ budget_percentage | round(1) }}%
+          </span>
+        </div>
+        <div class="prog-track">
+          <div class="prog-fill {{ 'bg-red-400' if budget_percentage >= 100 else '' }}" style="width:{{ [budget_percentage, 100] | min }}%"></div>
+        </div>
+        <div class="flex justify-between mt-2">
+          <p class="text-xs text-on-surface-variant">₹{{ "{:,.0f}".format(this_month) }} spent this month</p>
+          <p class="text-xs text-on-surface-variant">of ₹{{ "{:,.0f}".format(budget) }} monthly budget</p>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- ── Middle row: Monthly Comparison + Budget Control + Smart Insights ── -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-6">
+
+        <!-- Monthly Comparison -->
+        <div class="bg-surface-container border border-outline-variant rounded-2xl p-5">
+          <div class="flex items-center gap-2 mb-4">
+            <span class="material-symbols-outlined text-on-surface-variant" style="font-size:16px;">compare_arrows</span>
+            <h2 class="text-sm font-bold">Monthly Comparison</h2>
+          </div>
+          <div class="flex justify-between mb-4">
+            <div>
+              <p class="text-xs text-on-surface-variant mb-1">This Month</p>
+              <p class="text-[22px] font-extrabold leading-none">₹{{ "{:,.0f}".format(this_month) }}</p>
+            </div>
+            <div class="text-right">
+              <p class="text-xs text-on-surface-variant mb-1">Last Month</p>
+              <p class="text-[22px] font-extrabold leading-none text-on-surface-variant/60">₹{{ "{:,.0f}".format(last_month) }}</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 pt-3 border-t border-outline-variant">
+            <span class="material-symbols-outlined {{ 'text-error' if change_percentage > 0 else 'text-primary' }}" style="font-size:15px;">
+              {{ 'trending_up' if change_percentage > 0 else 'trending_down' }}
+            </span>
+            <p class="text-sm">
+              <span class="font-extrabold {{ 'text-error' if change_percentage > 0 else 'text-primary' }}">
+                {% if change_percentage > 0 %}+{% endif %}{{ change_percentage | round(1) }}%
+              </span>
+              <span class="text-on-surface-variant"> vs last month</span>
+            </p>
+          </div>
+        </div>
+
+        <!-- Budget Control -->
+        <div class="bg-surface-container border border-outline-variant rounded-2xl p-5">
+          <div class="flex items-center gap-2 mb-4">
+            <span class="material-symbols-outlined text-on-surface-variant" style="font-size:16px;">tune</span>
+            <h2 class="text-sm font-bold">Budget Threshold</h2>
+          </div>
+          <p class="text-[28px] font-extrabold leading-none mb-1">
+            {% if budget and budget > 0 %}₹{{ "{:,.0f}".format(budget) }}{% else %}<span class="text-on-surface-variant/40">Not set</span>{% endif %}
+          </p>
+          <p class="text-xs text-on-surface-variant mb-4">Monthly spending limit</p>
+          <form method="POST" class="flex gap-2">
+            <input type="number" name="budget" placeholder="New limit…" min="0" required class="inp" style="padding:9px 12px; font-size:13px;">
+            <button type="submit"
+              class="flex-shrink-0 bg-primary text-on-primary px-4 py-2 rounded-xl font-bold hover:brightness-110 transition-all text-sm">
+              Save
+            </button>
+          </form>
+        </div>
+
+        <!-- Smart Insights -->
+        <div class="bg-surface-container border border-outline-variant rounded-2xl p-5">
+          <div class="flex items-center gap-2 mb-3">
+            <span class="material-symbols-outlined text-primary" style="font-size:16px;">lightbulb</span>
+            <h2 class="text-sm font-bold">Smart Insights</h2>
+          </div>
+          <div>
+            {% for insight in insights %}
+            <div class="insight-row">
+              <span class="text-base flex-shrink-0 mt-0.5">{{ insight.icon }}</span>
+              <p class="text-sm text-on-surface-variant leading-snug">{{ insight.text }}</p>
+            </div>
+            {% else %}
+            <p class="text-sm text-on-surface-variant/60">Add expenses to start seeing personalised insights.</p>
+            {% endfor %}
+          </div>
+          <a href="/monthly-report" class="inline-flex items-center gap-1 text-xs font-bold text-primary mt-3 hover:underline">
+            Full report <span class="material-symbols-outlined" style="font-size:13px;">arrow_forward</span>
+          </a>
+        </div>
+
+      </div>
+
+      <!-- ── Personal ── -->
+      <p class="text-xs font-bold text-on-surface-variant/70 uppercase tracking-widest mb-2.5">Personal</p>
+
+      <!-- ── Bottom row: Savings Goals + Recent Expenses ── -->
+      <div class="grid grid-cols-1 lg:grid-cols-5 gap-5">
+
+        <!-- Savings Goals (2/5) -->
+        <div class="lg:col-span-2 bg-surface-container border border-outline-variant rounded-2xl p-5">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-on-surface-variant" style="font-size:16px;">savings</span>
+              <h2 class="text-sm font-bold">Savings Goals</h2>
+            </div>
+            <a href="/goals" class="text-xs font-bold text-primary hover:underline">View All →</a>
+          </div>
+
+          {% if goals %}
+          <div class="flex flex-col gap-4">
+            {% for goal in goals %}
+            {% set percent = ((goal[4] / goal[3]) * 100) if goal[3] > 0 else 0 %}
+            <div>
+              <div class="flex items-center justify-between mb-1.5">
+                <p class="text-sm font-bold text-on-surface truncate">{{ goal[2] }}</p>
+                <span class="text-xs font-extrabold text-primary ml-2 flex-shrink-0">{{ percent | round(0) | int }}%</span>
+              </div>
+              <div class="prog-track mb-1.5">
+                <div class="prog-fill" style="width:{{ [percent, 100] | min }}%"></div>
+              </div>
+              <div class="flex justify-between">
+                <p class="text-xs text-on-surface-variant">₹{{ "{:,.0f}".format(goal[4]) }} saved</p>
+                <p class="text-xs text-on-surface-variant">/ ₹{{ "{:,.0f}".format(goal[3]) }}</p>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="flex flex-col items-center gap-3 py-8 text-center">
+            <span class="material-symbols-outlined text-on-surface-variant/20" style="font-size:40px;">savings</span>
+            <div>
+              <p class="text-sm font-bold text-on-surface mb-1">No goals yet</p>
+              <p class="text-xs text-on-surface-variant">Set a target and track your progress.</p>
+            </div>
+            <a href="/add-goal"
+              class="inline-flex items-center gap-1.5 text-xs font-bold text-primary border border-primary/30 bg-primary/6 px-4 py-2 rounded-lg hover:bg-primary/12 transition-colors">
+              <span class="material-symbols-outlined" style="font-size:14px;">add</span>
+              Create First Goal
+            </a>
+          </div>
+          {% endif %}
+        </div>
+
+        <!-- Recent Expenses (3/5) -->
+        <div class="lg:col-span-3 bg-surface-container border border-outline-variant rounded-2xl p-5">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-on-surface-variant" style="font-size:16px;">receipt_long</span>
+              <h2 class="text-sm font-bold">Recent Expenses</h2>
+            </div>
+            <a href="/expenses" class="text-xs font-bold text-primary hover:underline">View All →</a>
+          </div>
+
+          {% if recent_expenses %}
+          <!-- Desktop/tablet table — unchanged, shown at sm breakpoint and up -->
+          <table class="exp-table hidden sm:table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Description</th>
+                <th>Category</th>
+                <th style="text-align:right;">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for expense in recent_expenses %}
+              <tr>
+                <td class="text-on-surface-variant text-[13px] whitespace-nowrap">{{ expense[0] }}</td>
+                <td class="font-medium text-on-surface">{{ expense[2] if expense[2] else '—' }}</td>
+                <td>
+                  <span class="cat-badge">
+                    {% if expense[1]|lower == 'food' %}🍕
+                    {% elif expense[1]|lower == 'shopping' %}🛍️
+                    {% elif expense[1]|lower == 'travel' %}🚗
+                    {% elif expense[1]|lower == 'bills' %}🧾
+                    {% elif expense[1]|lower == 'entertainment' %}🎬
+                    {% elif expense[1]|lower == 'health' %}🏥
+                    {% elif expense[1]|lower == 'education' %}📚
+                    {% elif expense[1]|lower == 'repairs' %}🔧
+                    {% else %}💰{% endif %}
+                    {{ expense[1] }}
+                  </span>
+                </td>
+                <td class="text-right font-bold text-error whitespace-nowrap">−₹{{ "{:,.0f}".format(expense[3]) }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+
+          <!-- Mobile stacked cards — shown below sm, same 4 data points as the table -->
+          <div class="sm:hidden divide-y divide-outline-variant">
+            {% for expense in recent_expenses %}
+            <div class="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+              <div class="flex items-center gap-3 min-w-0">
+                <span class="cat-badge flex-shrink-0">
+                  {% if expense[1]|lower == 'food' %}🍕
+                  {% elif expense[1]|lower == 'shopping' %}🛍️
+                  {% elif expense[1]|lower == 'travel' %}🚗
+                  {% elif expense[1]|lower == 'bills' %}🧾
+                  {% elif expense[1]|lower == 'entertainment' %}🎬
+                  {% elif expense[1]|lower == 'health' %}🏥
+                  {% elif expense[1]|lower == 'education' %}📚
+                  {% elif expense[1]|lower == 'repairs' %}🔧
+                  {% else %}💰{% endif %}
+                </span>
+                <div class="min-w-0">
+                  <p class="font-medium text-on-surface text-sm truncate">{{ expense[2] if expense[2] else '—' }}</p>
+                  <p class="text-xs text-on-surface-variant mt-0.5 truncate">{{ expense[0] }} · {{ expense[1] }}</p>
+                </div>
+              </div>
+              <span class="text-right font-bold text-error text-sm whitespace-nowrap flex-shrink-0">−₹{{ "{:,.0f}".format(expense[3]) }}</span>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="flex flex-col items-center gap-3 py-10 text-center">
+            <span class="material-symbols-outlined text-on-surface-variant/20" style="font-size:40px;">receipt_long</span>
+            <div>
+              <p class="text-sm font-bold text-on-surface mb-1">No expenses yet</p>
+              <p class="text-xs text-on-surface-variant">Your recent transactions will appear here.</p>
+            </div>
+            <a href="/expenses"
+              class="inline-flex items-center gap-1.5 text-xs font-bold text-primary border border-primary/30 bg-primary/6 px-4 py-2 rounded-lg hover:bg-primary/12 transition-colors">
+              <span class="material-symbols-outlined" style="font-size:14px;">add</span>
+              Add First Expense
+            </a>
+          </div>
+          {% endif %}
+        </div>
+
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+/* ── Toast ── */
+function showToast(message, type) {
+  const toast = document.getElementById('toast');
+  const icon  = document.getElementById('toastIcon');
+  document.getElementById('toastMsg').textContent = message;
+  icon.textContent  = type === 'error' ? 'error' : 'check_circle';
+  icon.className    = 'material-symbols-outlined ' + (type === 'error' ? 'text-error' : 'text-primary');
+  icon.style.fontSize = '16px';
+  toast.style.opacity = '1';
+  setTimeout(() => { toast.style.opacity = '0'; }, 3200);
+}
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+      showToast("{{ message }}", "{{ category }}");
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+</script>
+</body>
+</html>
