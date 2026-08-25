@@ -1,0 +1,178 @@
+from flask import Blueprint, render_template, request, redirect, session, flash
+from datetime import date
+from db import get_db
+from services.recurring_service import advance_recurring_date, process_due_auto_charges
+from services.ledger_service import get_categories
+from services.notification_service import create_notification, get_notification_prefs
+
+recurring_bp = Blueprint('recurring', __name__)
+
+@recurring_bp.route('/recurring', methods=['GET', 'POST'])
+def recurring():
+    if 'user_id' not in session:
+        return redirect('/login')
+
+    user_id = session['user_id']
+    with get_db() as (conn, cursor):
+        process_due_auto_charges(user_id, cursor, conn, get_notification_prefs, create_notification)
+
+        if request.method == 'POST':
+            name = request.form['name']
+            amount = float(request.form['amount'])
+            category = request.form.get('category') or None
+            repeats = request.form['repeats']
+            next_date = request.form['next_charge_date']
+            icon = request.form.get('icon', '⚡')
+            recurring_type = request.form.get('recurring_type', 'auto')
+
+            cursor.execute(
+                "INSERT INTO recurring_expenses "
+                "(user_id, title, amount, category, frequency, next_charge_date, icon, status, recurring_type) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, 'active', %s)",
+                (user_id, name, amount, category, repeats, next_date, icon, recurring_type)
+            )
+            flash("Subscription / Bill added successfully!", "success")
+            return redirect('/recurring')
+
+        cursor.execute(
+            "SELECT recurring_id, title, amount, category, frequency, next_charge_date, icon, status, recurring_type "
+            "FROM recurring_expenses WHERE user_id=%s ORDER BY status ASC, next_charge_date ASC",
+            (user_id,)
+        )
+        raw_items = cursor.fetchall()
+        items = [{
+            'recurring_id': r[0], 'id': r[0], 'title': r[1], 'name': r[1],
+            'amount': float(r[2] or 0), 'category': r[3], 'frequency': r[4], 'repeats': r[4],
+            'next_charge_date': r[5], 'icon': r[6] or '⚡', 'status': r[7], 'recurring_type': r[8],
+            'yearly': float(r[2] or 0) * (12 if r[4] == 'Monthly' else (52 if r[4] == 'Weekly' else 1))
+        } for r in raw_items]
+
+        cursor.execute("SELECT monthly_limit FROM budgets WHERE user_id=%s LIMIT 1", (user_id,))
+        b_row = cursor.fetchone()
+        monthly_budget = float(b_row[0]) if (b_row and b_row[0]) else 0.0
+
+        cursor.execute(
+            "SELECT COALESCE(SUM(amount), 0) FROM expenses "
+            "WHERE user_id=%s AND DATE_FORMAT(expense_date, '%Y-%m') = DATE_FORMAT(CURRENT_DATE(), '%Y-%m')",
+            (user_id,)
+        )
+        current_spent = float(cursor.fetchone()[0])
+
+        categories = get_categories(cursor)
+        monthly_total = sum(r['amount'] for r in items if r['status'] == 'active')
+        active_count = sum(1 for r in items if r['status'] == 'active')
+        budget_percentage = (current_spent / monthly_budget * 100.0) if monthly_budget > 0 else 0.0
+
+    return render_template(
+        'recurring/recurring.html',
+        username=session['username'],
+        display_name=session.get('display_name', session['username']),
+        items=items,
+        monthly_budget=monthly_budget,
+        current_spent=current_spent,
+        budget_percentage=budget_percentage,
+        monthly_total=monthly_total,
+        active_count=active_count,
+        categories=categories,
+        active_page='recurring'
+    )
+
+@recurring_bp.route('/delete-recurring/<int:id>')
+def delete_recurring(id):
+    if 'user_id' not in session:
+        return redirect('/login')
+    with get_db() as (conn, cursor):
+        cursor.execute("DELETE FROM recurring_expenses WHERE recurring_id=%s AND user_id=%s", (id, session['user_id']))
+    flash("Subscription deleted successfully!", "success")
+    return redirect('/recurring')
+
+@recurring_bp.route('/confirm-paid/<int:id>')
+def confirm_paid(id):
+    if 'user_id' not in session:
+        return redirect('/login')
+    user_id = session['user_id']
+    with get_db() as (conn, cursor):
+        cursor.execute(
+            "SELECT title, amount, category, frequency, next_charge_date FROM recurring_expenses "
+            "WHERE recurring_id=%s AND user_id=%s",
+            (id, user_id)
+        )
+        item = cursor.fetchone()
+        if not item:
+            flash("Recurring expense not found.", "error")
+            return redirect('/recurring')
+
+        title, amount, category, frequency, next_date = item
+        charge_date = next_date if next_date else date.today()
+
+        cursor.execute(
+            "INSERT INTO expenses (amount, category, description, expense_date, user_id, recurring_id) "
+            "VALUES (%s, %s, %s, %s, %s, %s)",
+            (amount, category or 'Other', f"{title} (bill paid)", charge_date, user_id, id)
+        )
+
+        new_next_date = advance_recurring_date(charge_date, frequency)
+        cursor.execute(
+            "UPDATE recurring_expenses SET next_charge_date=%s WHERE recurring_id=%s AND user_id=%s",
+            (new_next_date, id, user_id)
+        )
+
+    flash(f"Paid {title}! ₹{float(amount):,.0f} logged to Expenses.", "success")
+    return redirect('/recurring')
+
+@recurring_bp.route('/toggle-recurring/<int:id>')
+def toggle_recurring(id):
+    if 'user_id' not in session:
+        return redirect('/login')
+    user_id = session['user_id']
+    with get_db() as (conn, cursor):
+        cursor.execute("SELECT status FROM recurring_expenses WHERE recurring_id=%s AND user_id=%s", (id, user_id))
+        row = cursor.fetchone()
+        if row:
+            new_status = 'paused' if row[0] == 'active' else 'active'
+            cursor.execute(
+                "UPDATE recurring_expenses SET status=%s WHERE recurring_id=%s AND user_id=%s",
+                (new_status, id, user_id)
+            )
+    return redirect('/recurring')
+
+@recurring_bp.route('/update-recurring/<int:id>', methods=['POST'])
+def update_recurring(id):
+    if 'user_id' not in session:
+        return redirect('/login')
+    name = request.form['name']
+    amount = float(request.form['amount'])
+    category = request.form.get('category') or None
+    frequency = request.form['repeats']
+    icon = request.form.get('icon', '⚡')
+    next_date = request.form.get('next_charge_date') or None
+    recurring_type = request.form.get('recurring_type', 'auto')
+
+    with get_db() as (conn, cursor):
+        cursor.execute(
+            "UPDATE recurring_expenses "
+            "SET title=%s, amount=%s, category=%s, frequency=%s, next_charge_date=%s, icon=%s, recurring_type=%s "
+            "WHERE recurring_id=%s AND user_id=%s",
+            (name, amount, category, frequency, next_date, icon, recurring_type, id, session['user_id'])
+        )
+
+    flash("Subscription updated successfully!", "success")
+    return redirect('/recurring')
+
+@recurring_bp.route('/set-budget', methods=['POST'])
+def set_budget():
+    if 'user_id' not in session:
+        return redirect('/login')
+    new_budget = request.form['monthly_budget']
+    user_id = session['user_id']
+
+    with get_db() as (conn, cursor):
+        cursor.execute("SELECT COUNT(*) FROM budgets WHERE user_id=%s", (user_id,))
+        exists = cursor.fetchone()[0]
+        if exists:
+            cursor.execute("UPDATE budgets SET monthly_limit=%s WHERE user_id=%s", (new_budget, user_id))
+        else:
+            cursor.execute("INSERT INTO budgets (user_id, monthly_limit) VALUES (%s, %s)", (user_id, new_budget))
+
+    flash("Budget updated successfully!", "success")
+    return redirect(request.referrer or '/recurring')
