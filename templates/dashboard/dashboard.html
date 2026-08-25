@@ -278,6 +278,7 @@
           </p>
           <p class="text-xs text-on-surface-variant mb-4">Monthly spending limit</p>
           <form method="POST" class="flex gap-2">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
             <input type="number" name="budget" placeholder="New limit…" min="0" required class="inp" style="padding:9px 12px; font-size:13px;">
             <button type="submit"
               class="flex-shrink-0 bg-primary text-on-primary px-4 py-2 rounded-xl font-bold hover:brightness-110 transition-all text-sm">

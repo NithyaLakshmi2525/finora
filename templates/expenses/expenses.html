@@ -162,6 +162,7 @@
   </div>
 
   <form id="expenseForm" method="POST" action="/add-expense">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
     <div class="panel-body">
       <div>
         <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Amount (₹)</label>
@@ -249,6 +250,7 @@
       <!-- ── Filters ── -->
       <div class="bg-surface-container border border-outline-variant rounded-2xl p-5 mb-6">
         <form method="GET" class="flex flex-wrap gap-3 items-center">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
           <select name="search" class="inp" style="width:auto;min-width:190px;">
             <option value="">All Categories</option>
             {% for cat_name, cat_icon in categories %}
@@ -406,6 +408,7 @@
         Cancel
       </button>
       <form id="deleteConfirmForm" method="POST" action="#" class="flex-1">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <button type="submit"
           class="w-full bg-red-500/90 text-white py-2.5 rounded-xl font-bold hover:bg-red-500 transition-all text-sm">
           Delete

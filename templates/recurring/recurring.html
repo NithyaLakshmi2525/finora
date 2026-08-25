@@ -546,6 +546,7 @@
     </div>
 
     <form method="POST" id="addForm" class="flex flex-col gap-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
       <div>
         <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Name</label>
         <input type="text" name="name" placeholder="e.g. Netflix, Gym membership" required class="inp"/>
@@ -637,6 +638,7 @@
     </div>
 
     <form method="POST" id="editForm" class="flex flex-col gap-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
       <div>
         <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Name</label>
         <input type="text" name="name" id="edit-name" required class="inp"/>
@@ -727,6 +729,7 @@
       </button>
     </div>
     <form method="POST" action="/set-budget" id="budgetForm" class="flex flex-col gap-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
       <div>
         <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Monthly Budget (₹)</label>
         <input type="number" name="monthly_budget" step="0.01" min="0" required value="{{ budget if budget else '' }}" placeholder="e.g. 1000" class="inp"/>
@@ -765,6 +768,7 @@
         Cancel
       </button>
       <form id="deleteConfirmForm" method="POST" action="#" class="flex-1">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <button type="submit"
           class="w-full bg-red-500/90 text-white py-2.5 rounded-xl font-bold hover:bg-red-500 transition-all text-sm">
           Delete

@@ -238,9 +238,11 @@
           <h2 class="text-base font-extrabold mb-0.5">Edit Income</h2>
           <p class="text-xs text-on-surface-variant mb-4">{{ edit_entry[2] }} • ₹{{ "{:,.0f}".format(edit_entry[4]) }} • {{ edit_entry[5] }}</p>
           <form action="/edit-income/{{ edit_entry[0] }}" method="POST" id="incomeForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         {% else %}
           <h2 class="text-base font-extrabold mb-4">Add Income</h2>
           <form action="/income" method="POST" id="incomeForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         {% endif %}
 
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -341,6 +343,7 @@
       <!-- ── Filters ── -->
       <div class="bg-surface-container border border-outline-variant rounded-2xl p-5 mb-6">
         <form method="GET" class="flex flex-wrap gap-3 items-center" id="incomeFilterForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
           <!-- Filter source custom dropdown -->
           <div class="custom-dropdown" style="min-width:190px;" id="filterDropdownWrap">
             <button type="button" id="filterDropdownTrigger"
@@ -546,6 +549,7 @@
         Cancel
       </button>
       <form id="deleteConfirmForm" method="POST" action="#" class="flex-1">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <button type="submit"
           class="w-full bg-red-500/90 text-white py-2.5 rounded-xl font-bold hover:bg-red-500 transition-all text-sm">
           Delete

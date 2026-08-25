@@ -274,9 +274,11 @@
             <div class="pt-2.5 border-t border-outline-variant/40 flex items-center justify-between">
               <a href="/goals/{{ goal.id }}" class="text-xs text-secondary font-semibold hover:underline">View →</a>
               <form method="POST" action="/restore-goal/{{ goal.id }}" class="inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                 <button type="submit" class="text-xs text-primary font-semibold hover:underline">Restore</button>
               </form>
               <form method="POST" action="/delete-goal/{{ goal.id }}" class="inline" onsubmit="return confirm('Permanently delete this goal? This cannot be undone.')">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                 <button type="submit" class="text-xs text-error/70 font-semibold hover:text-error bg-transparent border-0 p-0 cursor-pointer">Delete</button>
               </form>
             </div>

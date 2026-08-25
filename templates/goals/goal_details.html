@@ -273,6 +273,7 @@
           </div>
 
           <form id="depositForm" class="flex flex-col gap-3" onsubmit="return submitSavings(event, 'deposit')">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
             <input type="hidden" name="action_type" value="deposit">
             <div>
               <label class="form-label">Amount</label>
@@ -287,6 +288,7 @@
           </form>
 
           <form id="withdrawForm" class="flex-col gap-3" style="display:none;" onsubmit="return confirmWithdraw(event)">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
             <input type="hidden" name="action_type" value="withdraw">
             <div>
               <label class="form-label">Amount</label>
@@ -332,6 +334,7 @@
     <div class="flex gap-3">
       <button type="button" onclick="closeCloseConfirm()" class="flex-1 py-2.5 rounded-xl border border-outline-variant text-on-surface-variant hover:bg-surface-container-high transition-all font-bold text-sm">Cancel</button>
       <form method="POST" action="/close-goal/{{ goal.id }}" class="flex-1">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <button type="submit" class="w-full bg-primary text-on-primary py-2.5 rounded-xl font-bold hover:brightness-110 transition-all text-sm">
           {% if goal.current > 0 %}Return to Available Balance{% else %}Close Goal{% endif %}
         </button>
@@ -375,6 +378,7 @@
       </div>
     </div>
     <form id="editTxnForm" onsubmit="return submitEditTxn(event)" class="flex flex-col gap-3">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
       <div>
         <label class="form-label">Amount</label>
         <input type="number" step="0.01" id="editTxnAmount" required class="minp">

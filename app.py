@@ -27,7 +27,9 @@ from reportlab.lib.styles import (
     getSampleStyleSheet
 )
 from datetime import datetime, date, timedelta
-from db import get_db_connection
+from config import Config
+from flask_wtf.csrf import CSRFProtect
+from db import get_db_connection, init_db_pool
 from authlib.integrations.flask_client import OAuth
 
 # Load .env file if present (pip install python-dotenv)
@@ -38,6 +40,9 @@ except ImportError:
     pass
 
 app = Flask(__name__)
+app.config.from_object(Config)
+csrf = CSRFProtect(app)
+init_db_pool()
 
 # Debug mode is OFF unless explicitly enabled — an unset environment variable
 # must always be the safe (production) default, never the permissive one.
@@ -353,6 +358,16 @@ def ensure_schema():
         # this stored hash, so this is invisible to the user. Idempotent:
         # once rotated, check_password_hash below will always return False
         # for that row on future startups.
+        # Budgets - ensure user_id column exists and add unique index per user
+        cursor.execute("""
+            SELECT COUNT(*) FROM information_schema.columns
+            WHERE table_schema = DATABASE() AND table_name = 'budgets' AND column_name = 'user_id'
+        """)
+        if cursor.fetchone()[0] == 0:
+            cursor.execute("ALTER TABLE budgets ADD COLUMN user_id INT NULL")
+            cursor.execute("UPDATE budgets SET user_id = (SELECT user_id FROM users ORDER BY user_id LIMIT 1) WHERE user_id IS NULL")
+            cursor.execute("ALTER TABLE budgets ADD UNIQUE INDEX idx_budgets_user (user_id)")
+
         try:
             cursor.execute("SELECT user_id, password FROM users WHERE password IS NOT NULL")
             legacy_rows = cursor.fetchall()
@@ -501,7 +516,7 @@ def generate_opportunistic_notifications(user_id, cursor, conn):
     these aren't only checked on the Dashboard: a user who only ever visits
     Reports, Expenses, or Goals should still get alerted.
     """
-    cursor.execute("SELECT monthly_limit FROM budgets LIMIT 1")
+    cursor.execute("SELECT monthly_limit FROM budgets WHERE user_id=%s LIMIT 1", (user_id,))
     budget_row = cursor.fetchone()
     budget = float(budget_row[0]) if budget_row and budget_row[0] is not None else 0
     if budget > 0:
@@ -823,9 +838,7 @@ def home():
     expense_count = cursor.fetchone()[0]
 
     # 3. Fetch current monthly limit from budget profile
-    cursor.execute(
-        "SELECT monthly_limit FROM budgets LIMIT 1"
-    )
+    cursor.execute("SELECT monthly_limit FROM budgets WHERE user_id=%s LIMIT 1", (session["user_id"],))
     budget_row = cursor.fetchone()
     budget = float(budget_row[0]) if budget_row and budget_row[0] is not None else 0
     budget_left = budget - month_spent
@@ -2971,7 +2984,7 @@ def settings():
         # No row yet for this user — default everything on
         notif_prefs = {'budget_alerts': True, 'recurring_reminders': True, 'goal_milestones': True}
 
-    cursor.execute("SELECT monthly_limit FROM budgets LIMIT 1")
+    cursor.execute("SELECT monthly_limit FROM budgets WHERE user_id=%s LIMIT 1", (user_id,))
     budget_row = cursor.fetchone()
     current_budget = float(budget_row[0]) if budget_row and budget_row[0] is not None else None
 
@@ -3151,7 +3164,7 @@ def recurring():
         top_category_name = None
         top_category_pct = 0
 
-    cursor.execute("SELECT monthly_limit FROM budgets LIMIT 1")
+    cursor.execute("SELECT monthly_limit FROM budgets WHERE user_id=%s LIMIT 1", (user_id,))
     budget_row = cursor.fetchone()
     budget_amount = float(budget_row[0]) if budget_row and budget_row[0] else 0
     budget_percentage = round((total_monthly / budget_amount) * 100) if budget_amount > 0 else 0
@@ -3287,16 +3300,17 @@ def set_budget():
     if 'user_id' not in session:
         return redirect('/login')
     new_budget = request.form['monthly_budget']
+    user_id = session['user_id']
     conn = get_db_connection(); cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM budgets")
+    cursor.execute("SELECT COUNT(*) FROM budgets WHERE user_id=%s", (user_id,))
     exists = cursor.fetchone()[0]
     if exists:
-        cursor.execute("UPDATE budgets SET monthly_limit=%s", (new_budget,))
+        cursor.execute("UPDATE budgets SET monthly_limit=%s WHERE user_id=%s", (new_budget, user_id))
     else:
-        cursor.execute("INSERT INTO budgets (monthly_limit) VALUES (%s)", (new_budget,))
+        cursor.execute("INSERT INTO budgets (user_id, monthly_limit) VALUES (%s, %s)", (user_id, new_budget))
     conn.commit(); cursor.close(); conn.close()
     flash("Budget updated successfully!", "success")
-    return redirect('/recurring')
+    return redirect(request.referrer or '/recurring')
 
 # ---------------------------------------------------------------------------
 # Google OAuth
@@ -3357,6 +3371,8 @@ def authorize_google():
 # ---------------------------------------------------------------------------
 @app.route('/add-income')
 def add_income_redirect():
+    if 'user_id' not in session:
+        return redirect('/login')
     return redirect('/income')
 
 def build_income_context(cursor, user_id, search=None, start_date=None, end_date=None, sort=None, page=1):
@@ -3632,3 +3648,23 @@ def clear_notifications():
 
 if __name__ == '__main__':
     app.run(debug=DEBUG)
+
+@app.errorhandler(404)
+def not_found_error(error):
+    return render_template(
+        'base.html',
+        page_title="Page Not Found",
+        username=session.get('username'),
+        display_name=session.get('display_name'),
+        content="<div class='p-12 text-center'><h2 class='text-2xl font-bold text-gray-200 mb-2'>404 — Page Not Found</h2><p class='text-gray-400 mb-6'>The page you requested does not exist.</p><a href='/' class='px-5 py-2.5 bg-primary text-on-primary font-semibold rounded-xl'>Return to Dashboard</a></div>"
+    ), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    return render_template(
+        'base.html',
+        page_title="Server Error",
+        username=session.get('username'),
+        display_name=session.get('display_name'),
+        content="<div class='p-12 text-center'><h2 class='text-2xl font-bold text-red-400 mb-2'>500 — Internal Server Error</h2><p class='text-gray-400 mb-6'>Something went wrong. Please try refreshing or return to dashboard.</p><a href='/' class='px-5 py-2.5 bg-primary text-on-primary font-semibold rounded-xl'>Return to Dashboard</a></div>"
+    ), 500

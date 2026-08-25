@@ -148,6 +148,7 @@
               <h2 class="text-sm font-bold">Display Name</h2>
             </div>
             <form action="/profile/update-name" method="POST" class="p-5 flex flex-col gap-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
               <div>
                 <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Display Name</label>
                 <input type="text" name="display_name" value="{{ display_name }}" required maxlength="40" placeholder="How should we call you?" class="inp"/>
@@ -168,6 +169,7 @@
               <h2 class="text-sm font-bold">Change Password</h2>
             </div>
             <form action="/profile/change-password" method="POST" class="p-5 flex flex-col gap-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
               <div>
                 <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Current Password</label>
                 <div class="relative">
@@ -259,6 +261,7 @@
     </div>
     <p class="text-sm text-on-surface-variant mb-4">All your expenses, income, goals, recurring items and balances will be permanently removed.</p>
     <form action="/profile/delete-account" method="POST" class="flex flex-col gap-3">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
       <div>
         <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Type "{{ username }}" to confirm</label>
         <input type="text" name="confirm_username" placeholder="{{ username }}" required class="inp"/>

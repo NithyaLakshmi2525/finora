@@ -132,6 +132,7 @@
               </div>
             </div>
             <form action="/settings" method="POST" class="p-5 flex flex-col gap-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
               <div>
                 <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Display Name</label>
                 <input type="text" name="display_name" value="{{ display_name }}" required maxlength="40" placeholder="Your name" class="inp"/>
@@ -155,6 +156,7 @@
               </div>
             </div>
             <form action="/settings" method="POST" class="p-5">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
               <div class="flex gap-3 items-end flex-wrap">
                 <div class="flex-1 min-w-[180px]">
                   <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Monthly Limit (₹)</label>
@@ -180,6 +182,7 @@
               </div>
             </div>
             <form action="/settings" method="POST" class="p-5 flex flex-col divide-y divide-outline-variant">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
               <input type="hidden" name="notif_prefs_submitted" value="1">
 
               <div class="flex items-center justify-between gap-4 pb-3.5">

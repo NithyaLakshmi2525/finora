@@ -101,6 +101,7 @@
         <!-- ── Form ── -->
         <div class="bg-surface-container border border-outline-variant rounded-2xl overflow-hidden">
           <form action="{{ '/edit-goal/' + goal.id|string if goal is defined else '/add-goal' }}" method="POST" id="goalForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
 
             <div class="p-6 border-b border-outline-variant">
               <div class="flex items-center gap-2 mb-5">
