@@ -34,3 +34,6 @@ desktop.ini
 # Logs & temp files
 *.log
 scratch/
+.coverage
+htmlcov/
+.pytest_cache/
