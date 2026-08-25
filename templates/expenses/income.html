@@ -224,7 +224,49 @@
           {% endif %}
         </div>
       </div>
-      <p class="text-xs text-on-surface-variant/60 mb-6 -mt-3">Totals reflect your all-time data, not just the filtered rows below.</p>
+      <!-- ── Recurring Income Section ── -->
+      <div class="bg-surface-container border border-outline-variant rounded-2xl p-5 mb-6">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-base font-extrabold flex items-center gap-2">
+              <span class="material-symbols-outlined text-primary" style="font-size:20px;">autorenew</span>
+              Recurring Income &amp; Salaries
+            </h2>
+            <p class="text-xs text-on-surface-variant mt-0.5">Automate recurring paychecks and monthly income deposits into your accounts.</p>
+          </div>
+          <button onclick="document.getElementById('recIncomeModal').classList.remove('hidden')"
+                  class="bg-primary/10 text-primary border border-primary/30 hover:bg-primary/20 px-3.5 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors">
+            <span class="material-symbols-outlined" style="font-size:16px;">add</span> Add Recurring Salary
+          </button>
+        </div>
+
+        {% if recurring_incomes %}
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {% for r in recurring_incomes %}
+              <div class="bg-surface-container-high border border-outline-variant/60 rounded-xl p-3.5 flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3 min-w-0">
+                  <span class="text-xl flex-shrink-0">{{ r.icon }}</span>
+                  <div class="min-w-0">
+                    <p class="font-bold text-sm text-on-surface truncate">{{ r.title }}</p>
+                    <p class="text-xs text-on-surface-variant">₹{{ "{:,.0f}".format(r.amount) }} • {{ r.frequency }}</p>
+                    <p class="text-[11px] text-primary mt-0.5">Next: {{ r.next_pay_fmt }}</p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-1">
+                  <a href="/toggle-recurring-income/{{ r.id }}" class="p-1 text-on-surface-variant hover:text-on-surface" title="Toggle Status">
+                    <span class="material-symbols-outlined" style="font-size:18px;">{% if r.status == 'active' %}pause_circle{% else %}play_circle{% endif %}</span>
+                  </a>
+                  <a href="/delete-recurring-income/{{ r.id }}" onclick="return confirm('Delete recurring income {{ r.title }}?')" class="p-1 text-on-surface-variant hover:text-error" title="Delete">
+                    <span class="material-symbols-outlined" style="font-size:18px;">delete</span>
+                  </a>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="text-xs text-on-surface-variant/60 text-center py-3">No recurring income setups configured yet.</p>
+        {% endif %}
+      </div>
 
       <!-- ── Add / Edit Form ── -->
       {% set all_sources = [
@@ -748,5 +790,81 @@ function showToast(message, type) {
   {% endif %}
 {% endwith %}
 </script>
+
+<!-- Modal: Add Recurring Income -->
+<div id="recIncomeModal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+  <div class="bg-surface-container border border-outline-variant rounded-2xl p-6 max-w-md w-full shadow-2xl">
+    <div class="flex items-center justify-between mb-5">
+      <h3 class="text-lg font-bold">Add Recurring Salary / Income</h3>
+      <button onclick="document.getElementById('recIncomeModal').classList.add('hidden')" class="text-on-surface-variant hover:text-on-surface">
+        <span class="material-symbols-outlined" style="font-size:20px;">close</span>
+      </button>
+    </div>
+
+    <form action="/add-recurring-income" method="POST" class="space-y-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+      <div>
+        <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Income Title</label>
+        <input type="text" name="title" required placeholder="e.g. Monthly Salary / Freelance Retainer" class="inp">
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Amount (₹)</label>
+          <input type="number" name="amount" step="0.01" min="0" required placeholder="50000.00" class="inp">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Source</label>
+          <select name="source" class="inp">
+            <option value="Salary">💼 Salary</option>
+            <option value="Freelance">💻 Freelance</option>
+            <option value="Business">🏢 Business</option>
+            <option value="Investments">📈 Investments</option>
+            <option value="Rental Income">🏠 Rental Income</option>
+            <option value="Other">📋 Other</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Frequency</label>
+          <select name="frequency" class="inp">
+            <option value="Monthly">Monthly</option>
+            <option value="Weekly">Weekly</option>
+            <option value="Yearly">Yearly</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Next Pay Date</label>
+          <input type="date" name="next_pay_date" required class="inp">
+        </div>
+      </div>
+
+      {% if user_accounts %}
+      <div>
+        <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Deposit Account</label>
+        <select name="account_id" class="inp">
+          {% for acc in user_accounts %}
+            <option value="{{ acc.account_id }}">{{ acc.name }} (₹{{ "{:,.2f}".format(acc.balance) }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+
+      <div class="flex items-center justify-end gap-3 pt-4 border-t border-outline-variant">
+        <button type="button" onclick="document.getElementById('recIncomeModal').classList.add('hidden')"
+                class="px-4 py-2 rounded-xl text-xs font-bold border border-outline-variant text-on-surface-variant hover:bg-surface-container-high">
+          Cancel
+        </button>
+        <button type="submit" class="px-5 py-2 rounded-xl text-xs font-bold bg-primary text-on-primary hover:brightness-110">
+          Save Recurring Setup
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
 </body>
 </html>

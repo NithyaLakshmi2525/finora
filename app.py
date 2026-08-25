@@ -147,6 +147,25 @@ def ensure_schema():
                 if cursor.fetchone()[0] == 0:
                     cursor.execute(f"ALTER TABLE recurring_expenses ADD COLUMN {col_name} {col_def}")
 
+            # Recurring Income table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS recurring_income (
+                    recurring_income_id INT AUTO_INCREMENT PRIMARY KEY,
+                    user_id INT NOT NULL,
+                    title VARCHAR(255) NOT NULL,
+                    amount DECIMAL(12,2) NOT NULL,
+                    source VARCHAR(50) NOT NULL DEFAULT 'Salary',
+                    frequency VARCHAR(20) NOT NULL DEFAULT 'Monthly',
+                    next_pay_date DATE NOT NULL,
+                    icon VARCHAR(10) DEFAULT '💼',
+                    status VARCHAR(10) NOT NULL DEFAULT 'active',
+                    account_id INT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_rec_inc_user (user_id),
+                    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            """)
+
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS notifications (
                     notification_id INT AUTO_INCREMENT PRIMARY KEY,

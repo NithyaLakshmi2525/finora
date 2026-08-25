@@ -1,4 +1,5 @@
-from flask import Blueprint, render_template, request, redirect, session, flash, Response
+import json
+from flask import Blueprint, render_template, request, redirect, session, flash, Response, jsonify
 from datetime import date
 from db import get_db
 from services.ledger_service import get_categories, build_income_context, csv_escape
@@ -7,6 +8,11 @@ from services.account_service import (
     get_user_accounts, get_default_account_id,
     adjust_account_on_expense_create, adjust_account_on_expense_delete, adjust_account_on_expense_update,
     adjust_account_on_income_create, adjust_account_on_income_delete, adjust_account_on_income_update
+)
+from services.csv_import_service import parse_and_preview_csv, commit_imported_csv_rows
+from services.recurring_income_service import (
+    get_user_recurring_income, add_recurring_income, process_due_recurring_income,
+    toggle_recurring_income_status, delete_recurring_income
 )
 
 expenses_bp = Blueprint('expenses', __name__)
@@ -209,16 +215,70 @@ def edit_expense(expense_id):
         active_page='expenses'
     )
 
-@expenses_bp.route('/summary')
-def summary():
-    if 'user_id' not in session:
-        return redirect('/login')
-    return redirect('/monthly-report')
+# ----------------- CSV IMPORT ROUTES -----------------
 
-@expenses_bp.route('/breakdown')
-def breakdown():
+@expenses_bp.route('/import-csv/preview', methods=['POST'])
+def import_csv_preview():
     if 'user_id' not in session:
         return redirect('/login')
+
+    if 'file' not in request.files:
+        flash("No file uploaded.", "error")
+        return redirect('/expenses')
+
+    file = request.files['file']
+    if not file.filename or not file.filename.endswith('.csv'):
+        flash("Please upload a valid CSV file.", "error")
+        return redirect('/expenses')
+
+    user_id = session['user_id']
+    content_str = file.read().decode('utf-8', errors='ignore')
+
+    with get_db() as (conn, cursor):
+        result = parse_and_preview_csv(cursor, user_id, content_str)
+        user_accounts = get_user_accounts(cursor, user_id)
+
+    if result.get('error'):
+        flash(result['error'], "error")
+        return redirect('/expenses')
+
+    valid_count = sum(1 for r in result['rows'] if r['is_valid'])
+    dup_count = sum(1 for r in result['rows'] if r['is_duplicate'])
+
+    return render_template(
+        'expenses/csv_preview.html',
+        username=session['username'],
+        display_name=session.get('display_name', session['username']),
+        rows=result['rows'],
+        rows_json=json.dumps(result['rows']),
+        valid_count=valid_count,
+        dup_count=dup_count,
+        user_accounts=user_accounts,
+        active_page='expenses'
+    )
+
+@expenses_bp.route('/import-csv/commit', methods=['POST'])
+def import_csv_commit():
+    if 'user_id' not in session:
+        return redirect('/login')
+
+    user_id = session['user_id']
+    raw_acc_id = request.form.get('account_id')
+    rows_json = request.form.get('rows_json', '[]')
+    selected_indices = [int(i) for i in request.form.getlist('selected_rows')]
+
+    try:
+        all_rows = json.loads(rows_json)
+    except Exception:
+        all_rows = []
+
+    selected_rows = [r for r in all_rows if r.get('row_num') in selected_indices]
+
+    with get_db() as (conn, cursor):
+        account_id = int(raw_acc_id) if raw_acc_id else get_default_account_id(cursor, user_id)
+        imported_count = commit_imported_csv_rows(cursor, user_id, selected_rows, account_id)
+
+    flash(f"Successfully imported {imported_count} expense transactions from CSV!", "success")
     return redirect('/expenses')
 
 # ----------------- INCOME ROUTES -----------------
@@ -230,14 +290,16 @@ def income():
         return redirect('/login')
 
     user_id = session['user_id']
-    if request.method == 'POST':
-        amount = float(request.form['amount'])
-        source = request.form['source']
-        description = request.form.get('description', '')
-        income_date = request.form.get('date') or request.form.get('income_date') or date.today().isoformat()
-        raw_acc_id = request.form.get('account_id')
+    with get_db() as (conn, cursor):
+        process_due_recurring_income(user_id, cursor, conn)
 
-        with get_db() as (conn, cursor):
+        if request.method == 'POST':
+            amount = float(request.form['amount'])
+            source = request.form['source']
+            description = request.form.get('description', '')
+            income_date = request.form.get('date') or request.form.get('income_date') or date.today().isoformat()
+            raw_acc_id = request.form.get('account_id')
+
             account_id = int(raw_acc_id) if raw_acc_id else get_default_account_id(cursor, user_id)
             cursor.execute(
                 "INSERT INTO income (user_id, amount, source, description, income_date, account_id) "
@@ -246,19 +308,20 @@ def income():
             )
             adjust_account_on_income_create(cursor, account_id, amount)
 
-        flash("Income entry added successfully!", "success")
-        return redirect('/income')
+            flash("Income entry added successfully!", "success")
+            return redirect('/income')
 
-    page = request.args.get('page', 1, type=int)
-    with get_db() as (conn, cursor):
+        page = request.args.get('page', 1, type=int)
         context = build_income_context(cursor, user_id, page=page)
         user_accounts = get_user_accounts(cursor, user_id)
+        recurring_incomes = get_user_recurring_income(cursor, user_id)
 
     return render_template(
         'expenses/income.html',
         username=session['username'],
         display_name=session.get('display_name', session['username']),
         user_accounts=user_accounts,
+        recurring_incomes=recurring_incomes,
         active_page='income',
         **context
     )
@@ -306,6 +369,7 @@ def edit_income(income_id):
 
         context = build_income_context(cursor, user_id, page=1)
         user_accounts = get_user_accounts(cursor, user_id)
+        recurring_incomes = get_user_recurring_income(cursor, user_id)
 
     return render_template(
         'expenses/income.html',
@@ -313,6 +377,7 @@ def edit_income(income_id):
         username=session['username'],
         display_name=session.get('display_name', session['username']),
         user_accounts=user_accounts,
+        recurring_incomes=recurring_incomes,
         active_page='income',
         **context
     )
@@ -332,4 +397,48 @@ def delete_income(income_id):
             adjust_account_on_income_delete(cursor, acc_id, inc_amt)
 
     flash("Income entry deleted successfully!", "success")
+    return redirect('/income')
+
+# ----------------- RECURRING INCOME ROUTES -----------------
+
+@expenses_bp.route('/add-recurring-income', methods=['POST'])
+def add_rec_income():
+    if 'user_id' not in session:
+        return redirect('/login')
+
+    user_id = session['user_id']
+    title = request.form['title']
+    amount = float(request.form['amount'])
+    source = request.form.get('source', 'Salary')
+    frequency = request.form.get('frequency', 'Monthly')
+    next_pay_date = request.form.get('next_pay_date') or date.today().isoformat()
+    raw_acc_id = request.form.get('account_id')
+
+    with get_db() as (conn, cursor):
+        account_id = int(raw_acc_id) if raw_acc_id else get_default_account_id(cursor, user_id)
+        add_recurring_income(cursor, user_id, title, amount, source, frequency, next_pay_date, '💼', account_id)
+
+    flash(f"Recurring income '{title}' added successfully!", "success")
+    return redirect('/income')
+
+@expenses_bp.route('/toggle-recurring-income/<int:rec_inc_id>')
+def toggle_rec_income(rec_inc_id):
+    if 'user_id' not in session:
+        return redirect('/login')
+
+    with get_db() as (conn, cursor):
+        toggle_recurring_income_status(cursor, session['user_id'], rec_inc_id)
+
+    flash("Recurring income status toggled.", "success")
+    return redirect('/income')
+
+@expenses_bp.route('/delete-recurring-income/<int:rec_inc_id>')
+def delete_rec_income(rec_inc_id):
+    if 'user_id' not in session:
+        return redirect('/login')
+
+    with get_db() as (conn, cursor):
+        delete_recurring_income(cursor, session['user_id'], rec_inc_id)
+
+    flash("Recurring income setup deleted.", "success")
     return redirect('/income')
