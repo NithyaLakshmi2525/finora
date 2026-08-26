@@ -78,3 +78,31 @@ def build_goal_summary(cursor, user_id):
         'overall_pct_rounded': round(min(100.0, overall_pct), 1),
         'progress_pct': round(min(100.0, overall_pct), 1),
     }
+
+def get_dashboard_goals(cursor, user_id, limit=3):
+    """Fetches active (unclosed) savings goals formatted for dashboard display."""
+    cursor.execute(
+        "SELECT goal_id, goal_name, target_amount, current_amount, target_date, icon, color "
+        "FROM savings_goals WHERE user_id=%s AND closed_at IS NULL "
+        "ORDER BY goal_id DESC LIMIT %s",
+        (user_id, limit)
+    )
+    rows = cursor.fetchall()
+    goals = []
+    for r in rows:
+        g_id, g_name, target_amt, current_amt, target_dt, icon, color = r
+        disp = compute_goal_display(target_amt, current_amt, target_dt, None)
+        goals.append({
+            'goal_id': g_id,
+            'goal_name': g_name,
+            'target_amount': float(target_amt or 0),
+            'current_amount': float(current_amt or 0),
+            'remaining': disp['remaining'],
+            'percentage': disp['pct_rounded'],
+            'status_label': disp['status_label'],
+            'status_key': disp['status_key'],
+            'icon': icon or '🎯',
+            'color': color or '#4edea3',
+        })
+    return goals
+

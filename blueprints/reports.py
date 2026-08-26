@@ -177,14 +177,24 @@ def export_csv():
     user_id = session['user_id']
     start_date = request.args.get('start') or request.args.get('start_date')
     end_date = request.args.get('end') or request.args.get('end_date')
-    category = request.args.get('category')
+    category = request.args.get('category') or request.args.get('current_category')
+    search = request.args.get('search') or request.args.get('q') or request.args.get('search_query')
+    show_income_raw = request.args.get('show_income') or request.args.get('income') or request.args.get('type')
+    show_income = str(show_income_raw).lower() in ('true', '1', 'yes', 'income', 'all') if show_income_raw else False
+    sort_order = request.args.get('sort', 'desc').lower()
 
     with get_db() as (conn, cursor):
-        rows = fetch_filtered_transactions(cursor, user_id, start_date, end_date, category)
+        rows = fetch_filtered_transactions(
+            cursor, user_id, start_date=start_date, end_date=end_date, category=category,
+            search=search, sort_order=sort_order, show_income=show_income
+        )
 
-    csv_data = "ID,Date,Category,Description,Amount\n"
+    csv_data = "ID,Date,Category,Description,Amount,Type\n" if show_income else "ID,Date,Category,Description,Amount\n"
     for r in rows:
-        csv_data += f"{r[0]},{r[1]},{csv_escape(r[2])},{csv_escape(r[3])},{r[4]}\n"
+        if len(r) >= 6:
+            csv_data += f"{r[0]},{r[1]},{csv_escape(r[2])},{csv_escape(r[3])},{r[4]},{r[5]}\n"
+        else:
+            csv_data += f"{r[0]},{r[1]},{csv_escape(r[2])},{csv_escape(r[3])},{r[4]}\n"
 
     return Response(
         csv_data,

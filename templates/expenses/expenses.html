@@ -237,7 +237,7 @@
               <input type="file" name="file" accept=".csv" class="hidden" onchange="this.form.submit()">
             </label>
           </form>
-          <a href="/export?{% if search %}search={{ search }}&{% endif %}{% if request.args.get('sort') %}sort={{ request.args.get('sort') }}&{% endif %}{% if start_date %}start_date={{ start_date }}&{% endif %}{% if end_date %}end_date={{ end_date }}&{% endif %}show_income={{ show_income }}"
+          <a href="/export?{% if current_category and current_category != 'all' %}category={{ current_category }}&{% endif %}{% if search %}search={{ search }}&{% endif %}{% if request.args.get('sort') %}sort={{ request.args.get('sort') }}&{% endif %}{% if start_date %}start_date={{ start_date }}&{% endif %}{% if end_date %}end_date={{ end_date }}&{% endif %}show_income={{ show_income }}"
             class="flex items-center gap-2 border border-outline-variant text-on-surface px-5 py-2.5 rounded-xl font-bold hover:bg-surface-container-high transition-all text-sm">
             <span class="material-symbols-outlined" style="font-size:17px;">download</span>
             Export CSV

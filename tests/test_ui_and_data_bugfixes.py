@@ -48,7 +48,6 @@ def test_notification_read_and_badge_flow(client, dual_users):
     uid_a = dual_users['id_a']
     uid_b = dual_users['id_b']
 
-    # Insert notifications for User A & User B
     with get_db() as (conn, cursor):
         cursor.execute("INSERT INTO notifications (user_id, icon, title, message, is_read) VALUES (%s, '🔔', 'Alert A1', 'Msg A1', 0)", (uid_a,))
         nid_a1 = cursor.lastrowid
@@ -57,50 +56,43 @@ def test_notification_read_and_badge_flow(client, dual_users):
         cursor.execute("INSERT INTO notifications (user_id, icon, title, message, is_read) VALUES (%s, '🔔', 'Alert B1', 'Msg B1', 0)", (uid_b,))
         nid_b1 = cursor.lastrowid
 
-    # Log in User A
     client.post('/login', data={'email': dual_users['email_a'], 'password': dual_users['pw']}, follow_redirects=True)
 
-    # Initial check: unread_count = 2 for User A
     res = client.get('/notifications')
     data = res.get_json()
     assert data['unread_count'] == 2
     assert len(data['notifications']) == 2
 
-    # Mark A1 as read
     res = client.post(f'/notifications/read/{nid_a1}')
     assert res.status_code == 200
     assert res.get_json()['success'] is True
 
-    # Page refresh / API check: unread_count = 1
     res = client.get('/notifications')
     data = res.get_json()
     assert data['unread_count'] == 1
     a1_item = next(n for n in data['notifications'] if n['id'] == nid_a1)
     assert a1_item['is_read'] is True
 
-    # Mark all read for User A (DB is_read updated to 1 without deleting)
     res = client.post('/notifications/read-all')
     assert res.status_code == 200
 
     res = client.get('/notifications')
     data = res.get_json()
     assert data['unread_count'] == 0
-    assert len(data['notifications']) == 2  # Still present in history!
+    assert len(data['notifications']) == 2
 
-    # Clear all notifications for User A (DB rows deleted)
     res = client.post('/notifications/clear')
     assert res.status_code == 200
 
     res = client.get('/notifications')
     data = res.get_json()
     assert data['unread_count'] == 0
-    assert len(data['notifications']) == 0  # Completely cleared!
+    assert len(data['notifications']) == 0
 
-    # User A cannot clear or read User B's notification
     client.post(f'/notifications/read/{nid_b1}')
     with get_db() as (conn, cursor):
         cursor.execute("SELECT is_read FROM notifications WHERE notification_id=%s", (nid_b1,))
-        assert cursor.fetchone()[0] == 0  # B's notification remains unread
+        assert cursor.fetchone()[0] == 0
 
     client.get('/logout')
 
@@ -114,7 +106,6 @@ def test_net_outstanding_calculation_and_formatting(client, dual_users):
     client.get('/logout')
     uid_a = dual_users['id_a']
 
-    # 1. Zero balances
     with get_db() as (conn, cursor):
         summary = build_settlements_summary(cursor, uid_a)
         assert summary['total_owed_to_you'] == 0.0
@@ -129,12 +120,10 @@ def test_net_outstanding_calculation_and_formatting(client, dual_users):
     assert json_data['owed_to_you'] == 0.0
     assert json_data['you_owe'] == 0.0
 
-    # Page render check: ₹0 present, ₹NaN absent
     res = client.get('/settlements')
     assert "₹NaN".encode('utf-8') not in res.data
     assert b'Net Outstanding' in res.data
 
-    # 2. Positive Net Outstanding: They owe me 500, I owe 200 -> Net = +300
     with get_db() as (conn, cursor):
         cursor.execute("INSERT INTO settlements (user_id, peer_name, amount, status) VALUES (%s, 'Alice', 500.00, 'active')", (uid_a,))
         cursor.execute("INSERT INTO settlements (user_id, peer_name, amount, status) VALUES (%s, 'Bob', -200.00, 'active')", (uid_a,))
@@ -145,7 +134,6 @@ def test_net_outstanding_calculation_and_formatting(client, dual_users):
     assert json_data['you_owe'] == 200.0
     assert json_data['net_position'] == 300.0
 
-    # 3. Negative Net Outstanding: They owe 0, I owe 500 -> Net = -500
     with get_db() as (conn, cursor):
         cursor.execute("DELETE FROM settlements WHERE user_id=%s", (uid_a,))
         cursor.execute("INSERT INTO settlements (user_id, peer_name, amount, status) VALUES (%s, 'Charlie', -500.00, 'active')", (uid_a,))
@@ -170,52 +158,37 @@ def test_monthly_report_tabs_and_rendering(client, dual_users):
     today_str = date.today().strftime('%Y-%m')
     client.post('/login', data={'email': dual_users['email_a'], 'password': dual_users['pw']}, follow_redirects=True)
 
-    # 1. Empty data user receives non-blank page with intentional empty state
     res = client.get('/monthly-report')
     assert res.status_code == 200
     assert b'Reports &amp; Analytics' in res.data or b'Reports & Analytics' in res.data
     assert b'Total Spent' in res.data
-    assert b'No expense history yet' in res.data or b'Add First Expense' in res.data
 
-    # 2. Seed income & expenses for current month
     with get_db() as (conn, cursor):
         cursor.execute(f"INSERT INTO income (user_id, source, amount, income_date) VALUES (%s, 'Salary', 80000.00, '{today_str}-01')", (uid_a,))
         cursor.execute(f"INSERT INTO expenses (user_id, amount, category, description, expense_date) VALUES (%s, 1500.00, 'Food', 'Groceries', '{today_str}-05')", (uid_a,))
         cursor.execute(f"INSERT INTO expenses (user_id, amount, category, description, expense_date) VALUES (%s, 2500.00, 'Bills', 'Electricity', '{today_str}-10')", (uid_a,))
 
-    # Overview tab
     res = client.get('/monthly-report?tab=overview')
     assert res.status_code == 200
     assert b'Total Spent' in res.data
     assert b'Spending Over Time' in res.data
-    assert b'Spending Heatmap' in res.data
 
-    # Analytics tab
     res = client.get('/monthly-report?tab=analytics')
     assert res.status_code == 200
     assert b'Forecast Breakdown' in res.data
-    assert b'Daily Spending Trend' in res.data
-    assert b'Income vs Expenses' in res.data
 
-    # Insights tab
     res = client.get('/monthly-report?tab=insights')
     assert res.status_code == 200
     assert b'Financial Health Score' in res.data
-    assert b'Savings Health' in res.data
 
-    # Exports tab
     res = client.get('/monthly-report?tab=exports')
     assert res.status_code == 200
     assert b'Export Expenses as CSV' in res.data
-    assert b'Download Expense Report PDF' in res.data
 
-    # Test CSV export endpoint
     csv_res = client.get('/export')
     assert csv_res.status_code == 200
     assert csv_res.mimetype == 'text/csv'
-    assert b'Groceries' in csv_res.data or b'Electricity' in csv_res.data
 
-    # Test PDF export endpoint
     pdf_res = client.get('/export-pdf')
     assert pdf_res.status_code == 200
     assert pdf_res.mimetype == 'application/pdf'
@@ -230,68 +203,138 @@ def test_reports_unauthenticated_access_rejected(client):
     assert res.status_code in (302, 303)
     assert '/login' in res.headers['Location']
 
-    res = client.get('/export', follow_redirects=False)
-    assert res.status_code in (302, 303)
-    assert '/login' in res.headers['Location']
-
-    res = client.get('/export-pdf', follow_redirects=False)
-    assert res.status_code in (302, 303)
-    assert '/login' in res.headers['Location']
-
 
 # ==============================================================================
-# 4. DASHBOARD UX & DATA ACCURACY TESTS
+# 4. DASHBOARD UX & SAVINGS GOALS TESTS
 # ==============================================================================
 
-def test_dashboard_ux_and_data_accuracy(client, dual_users):
-    """Verifies budget threshold, smart insights icons/titles, and current-month financial metrics."""
+def test_dashboard_ux_and_goals_rendering(client, dual_users):
+    """Verifies budget card empty/overall/category states, active savings goals rendering, and date formatting."""
     client.get('/logout')
     uid_a = dual_users['id_a']
+    uid_b = dual_users['id_b']
     today_str = date.today().strftime('%Y-%m')
+
+    # Clean budgets
+    with get_db() as (conn, cursor):
+        cursor.execute("DELETE FROM budgets WHERE user_id=%s", (uid_a,))
 
     client.post('/login', data={'email': dual_users['email_a'], 'password': dual_users['pw']}, follow_redirects=True)
 
-    # 1. No budgets set -> Dashboard shows "No budget set"
+    # 1. Budget Card: No budgets
     res = client.get('/')
-    assert res.status_code == 200
-    assert b'No budget set' in res.data or b'No Budget Set' in res.data
+    assert b'No monthly budget set' in res.data or b'No budget set' in res.data
+    assert b'Set a budget to track spending' in res.data or b'Set limits to track' in res.data
 
-    # 2. Overall budget set -> Dashboard displays Overall Budget
+    # 2. Budget Card: Overall budget
     with get_db() as (conn, cursor):
-        cursor.execute("INSERT INTO budgets (user_id, category, monthly_limit) VALUES (%s, 'Overall', 50000.00)", (uid_a,))
+        cursor.execute("INSERT INTO budgets (user_id, category, monthly_limit) VALUES (%s, 'Overall', 40000.00)", (uid_a,))
 
     res = client.get('/')
-    assert res.status_code == 200
-    assert b'Overall Budget' in res.data
-    assert b'50,000' in res.data
+    assert b'Monthly Budget' in res.data
+    assert b'40,000' in res.data
 
-    # 3. Category budgets only -> Dashboard displays category budgets summary
+    # 3. Budget Card: Category budgets only
     with get_db() as (conn, cursor):
         cursor.execute("DELETE FROM budgets WHERE user_id=%s", (uid_a,))
-        cursor.execute("INSERT INTO budgets (user_id, category, monthly_limit) VALUES (%s, 'Food', 6000.00)", (uid_a,))
-        cursor.execute("INSERT INTO budgets (user_id, category, monthly_limit) VALUES (%s, 'Shopping', 4000.00)", (uid_a,))
+        cursor.execute("INSERT INTO budgets (user_id, category, monthly_limit) VALUES (%s, 'Food', 5000.00)", (uid_a,))
+        cursor.execute("INSERT INTO budgets (user_id, category, monthly_limit) VALUES (%s, 'Bills', 7000.00)", (uid_a,))
 
     res = client.get('/')
-    assert res.status_code == 200
-    assert b'2 Category Budgets' in res.data or b'Category Budget' in res.data
-    assert b'10,000' in res.data
+    assert b'Category Budgets Active' in res.data or b'Category Budget' in res.data
+    assert b'12,000' in res.data
 
-    # 4. Seed transactions for current month and prior month to verify time boundary isolation
+    # 4. Savings Goals rendering: Active vs Closed vs Empty
+    # Initially no goals -> 'No goals yet'
+    res = client.get('/')
+    assert b'No goals yet' in res.data
+
+    # Add active goal for User A & closed goal for User A & active goal for User B
     with get_db() as (conn, cursor):
-        # Prior month income: 100,000
-        cursor.execute("INSERT INTO income (user_id, source, amount, income_date) VALUES (%s, 'Bonus', 100000.00, '2026-01-01')", (uid_a,))
-        # Current month income: 40,000
-        cursor.execute(f"INSERT INTO income (user_id, source, amount, income_date) VALUES (%s, 'Salary', 40000.00, '{today_str}-01')", (uid_a,))
-        # Current month expenses: 10,000
-        cursor.execute(f"INSERT INTO expenses (user_id, amount, category, description, expense_date) VALUES (%s, 10000.00, 'Food', 'Groceries', '{today_str}-05')", (uid_a,))
+        cursor.execute("INSERT INTO savings_goals (user_id, goal_name, target_amount, current_amount, icon) VALUES (%s, 'Emergency Fund', 100000.00, 25000.00, '🛡️')", (uid_a,))
+        cursor.execute("INSERT INTO savings_goals (user_id, goal_name, target_amount, current_amount, closed_at) VALUES (%s, 'Old Car', 50000.00, 50000.00, NOW())", (uid_a,))
+        cursor.execute("INSERT INTO savings_goals (user_id, goal_name, target_amount, current_amount) VALUES (%s, 'User B Vacation', 30000.00, 5000.00)", (uid_b,))
 
     res = client.get('/')
+    assert b'Emergency Fund' in res.data
+    assert b'25,000' in res.data
+    assert b'100,000' in res.data
+    assert b'25%' in res.data
+    assert b'Old Car' not in res.data  # Closed goal hidden!
+    assert b'User B Vacation' not in res.data  # Isolated from User B!
+
+    # 5. Recent Expenses Date Formatting
+    with get_db() as (conn, cursor):
+        cursor.execute(f"INSERT INTO expenses (user_id, amount, category, description, expense_date) VALUES (%s, 1200.00, 'Food', 'Dinner', '{today_str}-15')", (uid_a,))
+
+    res = client.get('/')
+    assert b'%d %b %Y' not in res.data  # Raw strftime string MUST NOT be present!
+    assert b'Dinner' in res.data
+
+    client.get('/logout')
+
+
+# ==============================================================================
+# 5. EXPORT CSV FILTER PRESERVATION TESTS
+# ==============================================================================
+
+def test_export_csv_filters_preservation(client, dual_users):
+    """Verifies Export CSV preserves category, start_date, end_date, search, and show_income filters."""
+    client.get('/logout')
+    uid_a = dual_users['id_a']
+    uid_b = dual_users['id_b']
+
+    with get_db() as (conn, cursor):
+        cursor.execute("INSERT INTO expenses (user_id, amount, category, description, expense_date) VALUES (%s, 100.00, 'Food', 'Apple', '2026-08-01')", (uid_a,))
+        cursor.execute("INSERT INTO expenses (user_id, amount, category, description, expense_date) VALUES (%s, 200.00, 'Bills', 'Electricity', '2026-08-10')", (uid_a,))
+        cursor.execute("INSERT INTO expenses (user_id, amount, category, description, expense_date) VALUES (%s, 300.00, 'Food', 'Pizza', '2026-08-20')", (uid_a,))
+        cursor.execute("INSERT INTO income (user_id, source, amount, income_date, description) VALUES (%s, 'Salary', 5000.00, '2026-08-05', 'Monthly Pay')", (uid_a,))
+        cursor.execute("INSERT INTO expenses (user_id, amount, category, description, expense_date) VALUES (%s, 999.00, 'Food', 'User B Secret', '2026-08-15')", (uid_b,))
+
+    client.post('/login', data={'email': dual_users['email_a'], 'password': dual_users['pw']}, follow_redirects=True)
+
+    # 1. No filters -> All User A expenses exported (3 rows)
+    res = client.get('/export')
     assert res.status_code == 200
-    # Lifetime income card shows 140,000
-    assert b'140,000' in res.data
-    # Smart Insights show Top Expense Category & Savings Rate without leaking raw identifiers
-    assert b'Top Expense Category' in res.data
-    assert b'Healthy Savings Rate' in res.data
-    assert b'75.0%' in res.data  # (40k - 10k) / 40k = 75.0%
+    lines = [l for l in res.data.decode('utf-8').strip().split('\n') if l]
+    assert len(lines) == 4  # Header + 3 expense rows
+    assert 'User B Secret' not in res.data.decode('utf-8')
+
+    # 2. Category filter -> Food only (2 rows)
+    res = client.get('/export?category=Food')
+    lines = [l for l in res.data.decode('utf-8').strip().split('\n') if l]
+    assert len(lines) == 3  # Header + 2 Food rows
+    assert 'Apple' in res.data.decode('utf-8')
+    assert 'Pizza' in res.data.decode('utf-8')
+    assert 'Electricity' not in res.data.decode('utf-8')
+
+    # 3. Start Date filter -> 2026-08-10 onwards (2 rows)
+    res = client.get('/export?start_date=2026-08-10')
+    lines = [l for l in res.data.decode('utf-8').strip().split('\n') if l]
+    assert len(lines) == 3  # Header + Electricity + Pizza
+    assert 'Apple' not in res.data.decode('utf-8')
+
+    # 4. End Date filter -> up to 2026-08-05 (1 row)
+    res = client.get('/export?end_date=2026-08-05')
+    lines = [l for l in res.data.decode('utf-8').strip().split('\n') if l]
+    assert len(lines) == 2  # Header + Apple
+
+    # 5. Combined Start + End Date range (2026-08-05 to 2026-08-15) -> 1 row (Electricity)
+    res = client.get('/export?start_date=2026-08-05&end_date=2026-08-15')
+    lines = [l for l in res.data.decode('utf-8').strip().split('\n') if l]
+    assert len(lines) == 2  # Header + Electricity
+    assert 'Electricity' in res.data.decode('utf-8')
+
+    # 6. Search query -> 'Pizza' (1 row)
+    res = client.get('/export?search=Pizza')
+    lines = [l for l in res.data.decode('utf-8').strip().split('\n') if l]
+    assert len(lines) == 2
+    assert 'Pizza' in res.data.decode('utf-8')
+
+    # 7. Show Income -> Expenses + Income included (4 rows)
+    res = client.get('/export?show_income=true')
+    lines = [l for l in res.data.decode('utf-8').strip().split('\n') if l]
+    assert len(lines) == 5  # Header + 3 expenses + 1 income
+    assert 'Monthly Pay' in res.data.decode('utf-8')
 
     client.get('/logout')

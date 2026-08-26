@@ -268,24 +268,54 @@
         </div>
 
         <!-- Budget Control -->
-        <div class="bg-surface-container border border-outline-variant rounded-2xl p-5">
-          <div class="flex items-center justify-between mb-4">
-            <div class="flex items-center gap-2">
-              <span class="material-symbols-outlined text-on-surface-variant" style="font-size:16px;">tune</span>
-              <h2 class="text-sm font-bold">Budget Threshold</h2>
+        <div class="bg-surface-container border border-outline-variant rounded-2xl p-5 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-on-surface-variant" style="font-size:16px;">tune</span>
+                <h2 class="text-sm font-bold">Monthly Budget</h2>
+              </div>
+              {% if has_overall_budget %}
+              <span class="text-xs font-extrabold px-2.5 py-0.5 rounded-md
+                {% if budget_percentage >= 100 %}bg-error/15 text-error
+                {% elif budget_percentage >= 80 %}bg-yellow-400/15 text-yellow-400
+                {% else %}bg-primary/15 text-primary{% endif %}">
+                {{ 'Exceeded' if budget_percentage >= 100 else ('Warning' if budget_percentage >= 80 else 'Normal') }}
+              </span>
+              {% elif has_cat_budget %}
+              <span class="text-xs font-extrabold px-2.5 py-0.5 rounded-md bg-primary/15 text-primary">
+                Category Budgets Active
+              </span>
+              {% endif %}
             </div>
-            <span class="text-xs font-semibold text-on-surface-variant/70">{{ budget_label }}</span>
+
+            {% if has_overall_budget %}
+            <p class="text-[26px] font-extrabold leading-none mb-1">₹{{ "{:,.0f}".format(budget_limit) }}</p>
+            <p class="text-xs text-on-surface-variant mb-3">
+              ₹{{ "{:,.0f}".format(budget_spent) }} spent ({{ budget_percentage | round(1) }}%) · ₹{{ "{:,.0f}".format([0.0, budget_limit - budget_spent] | max) }} remaining
+            </p>
+            <div class="prog-track mb-3">
+              <div class="prog-fill {{ 'bg-error' if budget_percentage >= 100 else '' }}" style="width:{{ [budget_percentage, 100] | min }}%"></div>
+            </div>
+            {% elif has_cat_budget %}
+            <p class="text-[26px] font-extrabold leading-none mb-1">₹{{ "{:,.0f}".format(budget_limit) }}</p>
+            <p class="text-xs text-on-surface-variant mb-3">
+              ₹{{ "{:,.0f}".format(budget_spent) }} spent across {{ budget_cat_count }} category budget{{ 's' if budget_cat_count != 1 else '' }} ({{ budget_percentage | round(1) }}%)
+            </p>
+            <div class="prog-track mb-3">
+              <div class="prog-fill {{ 'bg-error' if budget_percentage >= 100 else '' }}" style="width:{{ [budget_percentage, 100] | min }}%"></div>
+            </div>
+            {% else %}
+            <p class="text-base font-bold text-on-surface mb-1">No monthly budget set</p>
+            <p class="text-xs text-on-surface-variant mb-4">Set a budget to track spending and receive threshold alerts.</p>
+            {% endif %}
           </div>
-          {% if has_budget %}
-          <p class="text-[28px] font-extrabold leading-none mb-1">₹{{ "{:,.0f}".format(budget_limit) }}</p>
-          <p class="text-xs text-on-surface-variant mb-4">{{ budget_summary_text }}</p>
-          {% else %}
-          <p class="text-[28px] font-extrabold leading-none text-on-surface-variant/40 mb-1">No budget set</p>
-          <p class="text-xs text-on-surface-variant mb-4">Set limits to track your monthly spending.</p>
-          {% endif %}
-          <a href="/budgets" class="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline">
-            Manage Budgets <span class="material-symbols-outlined" style="font-size:13px;">arrow_forward</span>
-          </a>
+
+          <div>
+            <a href="/budgets" class="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline mt-2">
+              Manage Budgets <span class="material-symbols-outlined" style="font-size:13px;">arrow_forward</span>
+            </a>
+          </div>
         </div>
 
         <!-- Smart Insights -->
@@ -341,18 +371,25 @@
           {% if goals %}
           <div class="flex flex-col gap-4">
             {% for goal in goals %}
-            {% set percent = ((goal[4] / goal[3]) * 100) if goal[3] > 0 else 0 %}
+            {% set percent = goal.percentage if goal.percentage is defined else (((goal[4] / goal[3]) * 100) if (goal[3] is defined and goal[3] > 0) else 0) %}
+            {% set goal_name = goal.goal_name if goal.goal_name is defined else goal[2] %}
+            {% set current_amt = goal.current_amount if goal.current_amount is defined else goal[4] %}
+            {% set target_amt = goal.target_amount if goal.target_amount is defined else goal[3] %}
+            {% set icon_str = goal.icon if goal.icon is defined else '🎯' %}
             <div>
               <div class="flex items-center justify-between mb-1.5">
-                <p class="text-sm font-bold text-on-surface truncate">{{ goal[2] }}</p>
+                <div class="flex items-center gap-1.5 truncate">
+                  <span class="text-sm flex-shrink-0">{{ icon_str }}</span>
+                  <p class="text-sm font-bold text-on-surface truncate">{{ goal_name }}</p>
+                </div>
                 <span class="text-xs font-extrabold text-primary ml-2 flex-shrink-0">{{ percent | round(0) | int }}%</span>
               </div>
               <div class="prog-track mb-1.5">
                 <div class="prog-fill" style="width:{{ [percent, 100] | min }}%"></div>
               </div>
               <div class="flex justify-between">
-                <p class="text-xs text-on-surface-variant">₹{{ "{:,.0f}".format(goal[4]) }} saved</p>
-                <p class="text-xs text-on-surface-variant">/ ₹{{ "{:,.0f}".format(goal[3]) }}</p>
+                <p class="text-xs text-on-surface-variant">₹{{ "{:,.0f}".format(current_amt) }} saved</p>
+                <p class="text-xs text-on-surface-variant">/ ₹{{ "{:,.0f}".format(target_amt) }}</p>
               </div>
             </div>
             {% endfor %}

@@ -48,7 +48,48 @@ def csv_escape(val):
         s = '"' + s.replace('"', '""') + '"'
     return s
 
-def fetch_filtered_transactions(cursor, user_id, start_date=None, end_date=None, category=None):
+def fetch_filtered_transactions(cursor, user_id, start_date=None, end_date=None, category=None, search=None, sort_order='desc', show_income=False):
+    order_dir = 'ASC' if str(sort_order).lower() == 'asc' else 'DESC'
+
+    if show_income:
+        # Union expenses and income when show_income is enabled
+        query = (
+            "SELECT expense_id AS id, expense_date AS tx_date, category, description, amount, 'Expense' AS tx_type "
+            "FROM expenses WHERE user_id=%s"
+        )
+        params = [user_id]
+        if start_date:
+            query += " AND expense_date >= %s"
+            params.append(start_date)
+        if end_date:
+            query += " AND expense_date <= %s"
+            params.append(end_date)
+        if category and category != 'all':
+            query += " AND category = %s"
+            params.append(category)
+        if search:
+            query += " AND (description LIKE %s OR category LIKE %s)"
+            params.extend([f"%{search}%", f"%{search}%"])
+
+        query += " UNION ALL SELECT income_id AS id, income_date AS tx_date, source AS category, description, amount, 'Income' AS tx_type FROM income WHERE user_id=%s"
+        params.append(user_id)
+        if start_date:
+            query += " AND income_date >= %s"
+            params.append(start_date)
+        if end_date:
+            query += " AND income_date <= %s"
+            params.append(end_date)
+        if category and category != 'all':
+            query += " AND source = %s"
+            params.append(category)
+        if search:
+            query += " AND (description LIKE %s OR source LIKE %s)"
+            params.extend([f"%{search}%", f"%{search}%"])
+
+        query += f" ORDER BY tx_date {order_dir}, id {order_dir}"
+        cursor.execute(query, tuple(params))
+        return cursor.fetchall()
+
     query = "SELECT expense_id, expense_date, category, description, amount FROM expenses WHERE user_id=%s"
     params = [user_id]
     if start_date:
@@ -60,7 +101,11 @@ def fetch_filtered_transactions(cursor, user_id, start_date=None, end_date=None,
     if category and category != 'all':
         query += " AND category = %s"
         params.append(category)
-    query += " ORDER BY expense_date DESC, expense_id DESC"
+    if search:
+        query += " AND (description LIKE %s OR category LIKE %s)"
+        params.extend([f"%{search}%", f"%{search}%"])
+
+    query += f" ORDER BY expense_date {order_dir}, expense_id {order_dir}"
     cursor.execute(query, tuple(params))
     return cursor.fetchall()
 

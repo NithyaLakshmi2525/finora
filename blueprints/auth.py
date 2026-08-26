@@ -5,7 +5,7 @@ import hashlib
 from datetime import datetime, timedelta
 from db import get_db
 from services.insights_service import build_smart_insights
-from services.goal_service import build_goal_summary
+from services.goal_service import build_goal_summary, get_dashboard_goals
 from services.settlement_service import build_settlements_summary
 from services.notification_service import check_opportunistic_notifications, get_notification_prefs
 from services.recurring_service import process_due_auto_charges
@@ -58,7 +58,7 @@ def home():
 
         # Recent Transactions
         cursor.execute(
-            "SELECT DATE_FORMAT(expense_date, '%%d %%b %%Y'), category, description, amount "
+            "SELECT DATE_FORMAT(expense_date, '%d %b %Y'), category, description, amount "
             "FROM expenses WHERE user_id=%s ORDER BY expense_date DESC, expense_id DESC LIMIT 5",
             (user_id,)
         )
@@ -126,6 +126,7 @@ def home():
 
         insights = build_smart_insights(cursor, user_id)
         goal_summary = build_goal_summary(cursor, user_id)
+        goals = get_dashboard_goals(cursor, user_id)
         settlements_summary = build_settlements_summary(cursor, user_id)
 
     return render_template(
@@ -139,6 +140,9 @@ def home():
         budget_percentage=budget_pct,
         budget_label=budget_label,
         budget_summary_text=budget_summary_text,
+        budget_cat_count=len(cat_budgets),
+        has_overall_budget=has_overall,
+        has_cat_budget=has_cat,
         has_budget=has_budget,
         total_expenses=lifetime_expenses,
         total_spent=lifetime_expenses,
@@ -156,6 +160,7 @@ def home():
         chart_values=chart_values,
         top_category=top_category,
         insights=insights,
+        goals=goals,
         goal_summary=goal_summary,
         settlements_summary=settlements_summary,
         active_page='dashboard'
