@@ -237,10 +237,15 @@
               <input type="file" name="file" accept=".csv" class="hidden" onchange="this.form.submit()">
             </label>
           </form>
+          {% set has_active_filters = (search or start_date or end_date or (current_category and current_category != 'all') or show_income == '1' or show_income == 'true') %}
           <a id="exportCsvBtn" href="/export?{% if current_category and current_category != 'all' %}category={{ current_category }}&{% endif %}{% if search %}search={{ search }}&{% endif %}{% if sort %}sort={{ sort }}&{% endif %}{% if start_date %}start_date={{ start_date }}&{% endif %}{% if end_date %}end_date={{ end_date }}&{% endif %}show_income={{ show_income }}"
+            title="Export CSV (uses currently applied filters)"
             class="flex items-center gap-2 border border-outline-variant text-on-surface px-5 py-2.5 rounded-xl font-bold hover:bg-surface-container-high transition-all text-sm">
-            <span class="material-symbols-outlined" style="font-size:17px;">download</span>
-            Export CSV
+            <span class="material-symbols-outlined text-primary" style="font-size:17px;">download</span>
+            <span id="exportCsvBtnLabel">{% if has_active_filters %}Export Filtered CSV{% else %}Export CSV{% endif %}</span>
+            {% if has_active_filters %}
+            <span class="w-2 h-2 rounded-full bg-primary" title="Filtered CSV active"></span>
+            {% endif %}
           </a>
         </div>
       </div>
@@ -308,6 +313,17 @@
           </a>
           {% endif %}
         </form>
+
+        <div class="mt-3 flex items-center justify-between text-xs text-on-surface-variant/80 pt-2.5 border-t border-outline-variant/40 flex-wrap gap-2">
+          <span class="flex items-center gap-1.5" id="csvExportFilterNotice">
+            <span class="material-symbols-outlined text-primary" style="font-size:15px;">info</span>
+            {% if has_active_filters %}
+              <span><strong class="text-primary font-semibold">Export CSV uses active filters:</strong> Exporting will download only the <strong>{{ expense_count }}</strong> currently filtered transaction{{ 's' if expense_count != 1 else '' }}.</span>
+            {% else %}
+              <span>Export CSV downloads all <strong>{{ total_items }}</strong> transactions (no active filters applied).</span>
+            {% endif %}
+          </span>
+        </div>
       </div>
 
       <!-- ── Table ── -->

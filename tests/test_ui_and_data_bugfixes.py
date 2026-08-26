@@ -421,3 +421,72 @@ def test_accounts_and_budgets_page_rendering(client, dual_users):
     assert b'30,000' in res.data
 
     client.get('/logout')
+
+
+# ==============================================================================
+# 8. SIDEBAR CONSISTENCY & CSV EXPORT UI INDICATION TESTS
+# ==============================================================================
+
+def test_sidebar_consistency_across_all_pages(client, dual_users):
+    """Verifies that all authenticated routes include the shared sidebar partial and active link styling."""
+    client.get('/logout')
+    client.post('/login', data={'email': dual_users['email_a'], 'password': dual_users['pw']}, follow_redirects=True)
+
+    routes = [
+        ('/', b'Dashboard'),
+        ('/expenses', b'Expenses'),
+        ('/income', b'Income'),
+        ('/accounts', b'Accounts'),
+        ('/budgets', b'Budgets'),
+        ('/recurring', b'Recurring'),
+        ('/goals', b'Goals'),
+        ('/monthly-report', b'Reports'),
+        ('/settlements', b'Balances'),
+        ('/settings', b'Settings'),
+        ('/profile', b'Personal Account')
+    ]
+
+    for path, expected_text in routes:
+        res = client.get(path)
+        assert res.status_code == 200, f"Failed on path {path}"
+        assert b'id="sidebar"' in res.data, f"Sidebar drawer missing on path {path}"
+        assert b'sidebar-drawer' in res.data, f"Sidebar drawer class missing on path {path}"
+        assert b'Finora' in res.data, f"Brand logo missing on path {path}"
+        assert expected_text in res.data, f"Expected text {expected_text} missing on path {path}"
+
+    client.get('/logout')
+
+
+def test_filtered_csv_export_ui_indication(client, dual_users):
+    """Verifies the Expenses page clearly indicates when Export CSV will export filtered vs all transactions."""
+    client.get('/logout')
+    uid_a = dual_users['id_a']
+
+    with get_db() as (conn, cursor):
+        cursor.execute("INSERT INTO expenses (user_id, amount, category, description, expense_date) VALUES (%s, 100.00, 'Food', 'Apple', '2026-08-01')", (uid_a,))
+        cursor.execute("INSERT INTO expenses (user_id, amount, category, description, expense_date) VALUES (%s, 200.00, 'Bills', 'Electricity', '2026-08-10')", (uid_a,))
+
+    client.post('/login', data={'email': dual_users['email_a'], 'password': dual_users['pw']}, follow_redirects=True)
+
+    # 1. Unfiltered state
+    res = client.get('/expenses')
+    assert res.status_code == 200
+    assert b'Export CSV downloads all' in res.data
+    assert b'no active filters applied' in res.data
+    assert b'Export CSV' in res.data
+
+    # 2. Filtered state (Category = Food)
+    res = client.get('/expenses?category=Food')
+    assert res.status_code == 200
+    assert b'Export CSV uses active filters' in res.data
+    assert b'Export Filtered CSV' in res.data
+    assert b'currently filtered transaction' in res.data
+
+    # 3. Filtered state (Search = Electricity)
+    res = client.get('/expenses?search=Electricity')
+    assert res.status_code == 200
+    assert b'Export CSV uses active filters' in res.data
+    assert b'Export Filtered CSV' in res.data
+
+    client.get('/logout')
+
