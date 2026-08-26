@@ -465,7 +465,11 @@
 <script>
 let balancesData = { active: [], history: [] };
 
-function fmt(v) { return '₹' + Number(v).toLocaleString('en-IN', { maximumFractionDigits: 0 }); }
+function fmt(v) {
+  const n = Number(v);
+  if (isNaN(n) || v === null || v === undefined) return '₹0';
+  return '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 0 });
+}
 function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str == null ? '' : String(str);
@@ -524,11 +528,32 @@ function applyBalancesData(data) {
 }
 
 function applySummary(data) {
-  document.getElementById('statOwedToYou').textContent = data.owed_to_you > 0 ? '+' + fmt(data.owed_to_you) : '₹0';
-  document.getElementById('statYouOwe').textContent = data.you_owe > 0 ? '-' + fmt(data.you_owe) : '₹0';
+  let owedToYou = 0;
+  let youOwe = 0;
+  let netPos = 0;
+
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    owedToYou = Number(data.owed_to_you ?? data.total_owed_to_you ?? 0);
+    youOwe = Number(data.you_owe ?? data.total_you_owe ?? 0);
+    netPos = Number(data.net_position ?? data.net_balance ?? (owedToYou - youOwe));
+  } else if (Array.isArray(data)) {
+    data.filter(b => b.status === 'active').forEach(b => {
+      const amt = Number(b.amount || 0);
+      if (amt >= 0) owedToYou += amt;
+      else youOwe += Math.abs(amt);
+    });
+    netPos = owedToYou - youOwe;
+  }
+
+  if (isNaN(owedToYou)) owedToYou = 0;
+  if (isNaN(youOwe)) youOwe = 0;
+  if (isNaN(netPos)) netPos = 0;
+
+  document.getElementById('statOwedToYou').textContent = owedToYou > 0 ? '+' + fmt(owedToYou) : '₹0';
+  document.getElementById('statYouOwe').textContent = youOwe > 0 ? '-' + fmt(youOwe) : '₹0';
   const netEl = document.getElementById('statNetPosition');
-  netEl.textContent = data.net_position === 0 ? '₹0' : (data.net_position > 0 ? '+' : '') + fmt(data.net_position);
-  netEl.className = 'text-[32px] font-extrabold leading-none tracking-tight ' + (data.net_position >= 0 ? 'text-primary' : 'text-error');
+  netEl.textContent = netPos === 0 ? '₹0' : (netPos > 0 ? '+' : '') + fmt(netPos);
+  netEl.className = 'text-[32px] font-extrabold leading-none tracking-tight ' + (netPos >= 0 ? 'text-primary' : 'text-error');
 }
 
 let openBalancesShown = 8;

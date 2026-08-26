@@ -7,12 +7,16 @@ from services.ledger_service import fetch_filtered_transactions, csv_escape, get
 
 reports_bp = Blueprint('reports', __name__)
 
+import calendar
+from datetime import date, timedelta
+
 @reports_bp.route('/monthly-report')
 def monthly_report():
     if 'user_id' not in session:
         return redirect('/login')
 
     user_id = session['user_id']
+    active_tab = request.args.get('tab', 'overview')
     month_param = request.args.get('month')
     today = date.today()
     if month_param:
@@ -25,33 +29,102 @@ def monthly_report():
         target_date = date(today.year, today.month, 1)
 
     month_str = target_date.strftime('%Y-%m')
+    
+    # Calculate prior month str
+    first_of_target = date(target_date.year, target_date.month, 1)
+    last_month_date = first_of_target - timedelta(days=1)
+    last_month_str = last_month_date.strftime('%Y-%m')
+    days_in_month = calendar.monthrange(target_date.year, target_date.month)[1]
 
     with get_db() as (conn, cursor):
+        # Current month income
         cursor.execute(
-            "SELECT COALESCE(SUM(amount), 0) FROM income "
-            "WHERE user_id=%s AND DATE_FORMAT(income_date, '%Y-%m') = %s",
+            "SELECT COALESCE(SUM(amount), 0) FROM income WHERE user_id=%s AND DATE_FORMAT(income_date, '%%Y-%%m') = %s",
             (user_id, month_str)
         )
         total_income = float(cursor.fetchone()[0])
 
+        # Current month expenses
         cursor.execute(
-            "SELECT COALESCE(SUM(amount), 0) FROM expenses "
-            "WHERE user_id=%s AND DATE_FORMAT(expense_date, '%Y-%m') = %s",
+            "SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE user_id=%s AND DATE_FORMAT(expense_date, '%%Y-%%m') = %s",
             (user_id, month_str)
         )
-        total_expenses = float(cursor.fetchone()[0])
+        spent_this_month = float(cursor.fetchone()[0])
+        total_expenses = spent_this_month
 
+        # Prior month expenses
+        cursor.execute(
+            "SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE user_id=%s AND DATE_FORMAT(expense_date, '%%Y-%%m') = %s",
+            (user_id, last_month_str)
+        )
+        last_month = float(cursor.fetchone()[0])
+
+        change_percentage = ((spent_this_month - last_month) / last_month * 100.0) if last_month > 0 else 0.0
         net_cash_flow = total_income - total_expenses
         savings_rate = ((total_income - total_expenses) / total_income * 100.0) if total_income > 0 else 0.0
 
+        # All-time monthly history report_data
+        cursor.execute(
+            "SELECT DATE_FORMAT(expense_date, '%%Y-%%m') AS ym, SUM(amount) "
+            "FROM expenses WHERE user_id=%s GROUP BY ym ORDER BY ym DESC LIMIT 12",
+            (user_id,)
+        )
+        report_rows = cursor.fetchall()
+        report_data = [(r[0], float(r[1])) for r in report_rows]
+
+        # Top 5 largest expenses
+        cursor.execute(
+            "SELECT description, category, amount FROM expenses WHERE user_id=%s ORDER BY amount DESC LIMIT 5",
+            (user_id,)
+        )
+        largest_expenses = cursor.fetchall()
+
+        # Category breakdown for current month (or fallback to all-time if empty)
         cursor.execute(
             "SELECT category, SUM(amount) FROM expenses "
-            "WHERE user_id=%s AND DATE_FORMAT(expense_date, '%Y-%m') = %s "
+            "WHERE user_id=%s AND DATE_FORMAT(expense_date, '%%Y-%%m') = %s "
             "GROUP BY category ORDER BY SUM(amount) DESC",
             (user_id, month_str)
         )
-        cat_data = cursor.fetchall()
-        cat_breakdown = [{'category': r[0], 'total': float(r[1]), 'pct': (float(r[1]) / total_expenses * 100.0) if total_expenses > 0 else 0} for r in cat_data]
+        cat_rows = cursor.fetchall()
+        if not cat_rows:
+            cursor.execute(
+                "SELECT category, SUM(amount) FROM expenses WHERE user_id=%s GROUP BY category ORDER BY SUM(amount) DESC",
+                (user_id,)
+            )
+            cat_rows = cursor.fetchall()
+
+        category_breakdown = [(r[0], float(r[1])) for r in cat_rows]
+        cat_amounts = [float(r[1]) for r in cat_rows] if cat_rows else [0.0]
+        categories = [r[0] for r in cat_rows] if cat_rows else ['No Expenses']
+        top_month_category = category_breakdown[0][0] if category_breakdown else None
+
+        # Forecast calculations
+        current_day = today.day if (today.year == target_date.year and today.month == target_date.month) else days_in_month
+        avg_daily = (spent_this_month / current_day) if current_day > 0 else 0.0
+        days_remaining = max(0, days_in_month - current_day)
+        forecast = spent_this_month + (avg_daily * days_remaining)
+        projected_savings = total_income - forecast
+
+        # Reserved for goals & available cash
+        cursor.execute("SELECT COALESCE(SUM(current_amount), 0), COUNT(*) FROM savings_goals WHERE user_id=%s", (user_id,))
+        g_row = cursor.fetchone()
+        goal_allocation = float(g_row[0]) if g_row else 0.0
+        goal_count = g_row[1] if g_row else 0
+
+        cursor.execute("SELECT COALESCE(SUM(balance), 0) FROM accounts WHERE user_id=%s AND is_active=1", (user_id,))
+        acc_total = float(cursor.fetchone()[0] or 0.0)
+        available_cash = acc_total - goal_allocation
+
+        # Trend dates & amounts for daily chart / heatmap
+        cursor.execute(
+            "SELECT DATE_FORMAT(expense_date, '%%Y-%%m-%%d') AS ed, SUM(amount) "
+            "FROM expenses WHERE user_id=%s GROUP BY ed ORDER BY ed ASC",
+            (user_id,)
+        )
+        trend_rows = cursor.fetchall()
+        trend_dates = [r[0] for r in trend_rows] if trend_rows else [today.isoformat()]
+        trend_amounts = [float(r[1]) for r in trend_rows] if trend_rows else [0.0]
 
         insights = build_smart_insights(cursor, user_id)
 
@@ -59,13 +132,33 @@ def monthly_report():
         'reports/monthly_report.html',
         username=session['username'],
         display_name=session.get('display_name', session['username']),
+        active_tab=active_tab,
         selected_month=month_str,
         month_label=target_date.strftime('%B %Y'),
         total_income=total_income,
+        this_month=total_income,
         total_expenses=total_expenses,
+        spent_this_month=spent_this_month,
+        last_month=last_month,
+        change_percentage=change_percentage,
         net_cash_flow=net_cash_flow,
         savings_rate=savings_rate,
-        cat_breakdown=cat_breakdown,
+        report_data=report_data,
+        largest_expenses=largest_expenses,
+        category_breakdown=category_breakdown,
+        cat_amounts=cat_amounts,
+        categories=categories,
+        top_month_category=top_month_category,
+        forecast=forecast,
+        avg_daily=avg_daily,
+        days_remaining=days_remaining,
+        today_day=current_day,
+        projected_savings=projected_savings,
+        goal_allocation=goal_allocation,
+        goal_count=goal_count,
+        available_cash=available_cash,
+        trend_dates=trend_dates,
+        trend_amounts=trend_amounts,
         insights=insights,
         active_page='reports'
     )
@@ -76,8 +169,8 @@ def export_csv():
         return redirect('/login')
 
     user_id = session['user_id']
-    start_date = request.args.get('start')
-    end_date = request.args.get('end')
+    start_date = request.args.get('start') or request.args.get('start_date')
+    end_date = request.args.get('end') or request.args.get('end_date')
     category = request.args.get('category')
 
     with get_db() as (conn, cursor):

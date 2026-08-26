@@ -13,15 +13,21 @@ def build_settlements_summary(cursor, user_id):
     total_owed_to_you = 0.0
     total_you_owe = 0.0
     for (amt,) in rows:
-        val = float(amt)
+        try:
+            val = float(amt) if amt is not None else 0.0
+        except (ValueError, TypeError):
+            val = 0.0
+
         if val >= 0:
             total_owed_to_you += val
         else:
             total_you_owe += abs(val)
 
+    net_val = total_owed_to_you - total_you_owe
     return {
         'total_owed_to_you': total_owed_to_you,
         'total_you_owe': total_you_owe,
-        'net_balance': total_owed_to_you - total_you_owe,
+        'net_balance': net_val,
+        'net_position': net_val,
         'active_count': len(rows)
     }

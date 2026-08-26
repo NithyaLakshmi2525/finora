@@ -71,6 +71,7 @@ def settlements_data():
         return jsonify({'error': 'Unauthorized'}), 401
     user_id = session['user_id']
     with get_db() as (conn, cursor):
+        summary_info = build_settlements_summary(cursor, user_id)
         cursor.execute(
             "SELECT settlement_id, peer_name, amount, status, created_at, updated_at, reason, balance_date, counts_as_expense, linked_expense_id "
             "FROM settlements WHERE user_id=%s ORDER BY status ASC, created_at DESC",
@@ -78,12 +79,30 @@ def settlements_data():
         )
         items = cursor.fetchall()
 
-    return jsonify([{
-        'settlement_id': r[0], 'peer_name': r[1], 'amount': float(r[2]),
-        'status': r[3], 'created_at': str(r[4]), 'updated_at': str(r[5]),
-        'reason': r[6], 'balance_date': str(r[7]), 'counts_as_expense': bool(r[8]),
-        'linked_expense_id': r[9]
-    } for r in items])
+    active_items = []
+    history_items = []
+    for r in items:
+        amt = float(r[2] or 0.0)
+        item_dict = {
+            'id': r[0], 'settlement_id': r[0], 'peer_name': r[1], 'amount': amt,
+            'status': r[3], 'created_at': str(r[4]), 'updated_at': str(r[5]),
+            'reason': r[6], 'balance_date': str(r[7]), 'balance_date_display': str(r[7]),
+            'counts_as_expense': bool(r[8]), 'linked_expense_id': r[9]
+        }
+        if r[3] == 'active':
+            active_items.append(item_dict)
+        else:
+            history_items.append(item_dict)
+
+    return jsonify({
+        'owed_to_you': summary_info['total_owed_to_you'],
+        'you_owe': summary_info['total_you_owe'],
+        'net_position': summary_info['net_balance'],
+        'net_balance': summary_info['net_balance'],
+        'active': active_items,
+        'history': history_items,
+        'items': active_items + history_items
+    })
 
 @settlements_bp.route('/settle/<int:settlement_id>')
 def settle_transaction(settlement_id):

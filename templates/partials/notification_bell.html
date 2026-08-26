@@ -112,7 +112,7 @@ async function loadNotifications() {
       list.innerHTML = '<div class="notif-empty">You\'re all caught up 🎉</div>';
       return;
     }
-    list.innerHTML = data.items.map(n => `
+    list.innerHTML = items.map(n => `
       <div class="notif-item-wrap">
         <a href="${notifEscapeHtml(n.link || '#')}" class="notif-item ${n.is_read ? '' : 'unread'}" data-id="${n.id}" data-link="${notifEscapeHtml(n.link || '')}" onclick="handleNotifClick(event, this)">
           <span class="ni-icon">${notifEscapeHtml(n.icon)}</span>
@@ -146,31 +146,21 @@ function closeNotifPanel() {
     document.getElementById('bellBtn').setAttribute('aria-expanded', 'false');
   }
 }
-/* Values come off data-* attributes rather than being inlined into the
-   onclick string — same reason goal_details.html's transaction menu does
-   this: a link/title containing a quote could otherwise break out of a
-   quoted JS literal embedded in an HTML attribute. */
 function handleNotifClick(event, el) {
   event.preventDefault();
   const id = el.dataset.id;
   const link = el.dataset.link;
   markNotifRead(id).finally(() => {
-    if (link) window.location.href = link;
+    if (link && link !== '#' && link !== 'javascript:void(0)') {
+      window.location.href = link;
+    }
   });
 }
 function markNotifRead(id) {
-  // Was previously a plain <a href> with no preventDefault — the browser
-  // began navigating away immediately on click, and the async mark-read
-  // request frequently never finished before the page unloaded, so the
-  // notification was never actually marked read despite navigation
-  // "working". Now explicitly awaited (see handleNotifClick above) and
-  // response status is checked instead of assumed, so a real backend
-  // failure (e.g. session expired) is surfaced instead of silently
-  // treated as success.
   return fetch('/notifications/read/' + id, { method: 'POST', credentials: 'same-origin' })
     .then(res => {
       if (!res.ok) throw new Error('Failed to mark notification as read (status ' + res.status + ')');
-      return pollUnreadCount();
+      return loadNotifications();
     })
     .catch(err => {
       console.error('Failed to mark notification as read:', err);
