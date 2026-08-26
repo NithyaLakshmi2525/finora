@@ -4,6 +4,12 @@ import io
 from db import get_db
 from services.insights_service import build_smart_insights
 from services.ledger_service import fetch_filtered_transactions, csv_escape, get_categories
+from services.notification_service import (
+    mark_notification_read as svc_mark_read,
+    mark_all_notifications_read as svc_mark_all_read,
+    delete_notification as svc_delete_notif,
+    clear_all_notifications as svc_clear_all
+)
 
 reports_bp = Blueprint('reports', __name__)
 
@@ -263,10 +269,7 @@ def mark_notification_read(notification_id):
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
     with get_db() as (conn, cursor):
-        cursor.execute(
-            "UPDATE notifications SET is_read=1 WHERE notification_id=%s AND user_id=%s",
-            (notification_id, session['user_id'])
-        )
+        svc_mark_read(cursor, session['user_id'], notification_id)
     return jsonify({'success': True})
 
 @reports_bp.route('/notifications/read-all', methods=['POST'])
@@ -274,7 +277,7 @@ def mark_all_notifications_read():
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
     with get_db() as (conn, cursor):
-        cursor.execute("UPDATE notifications SET is_read=1 WHERE user_id=%s", (session['user_id'],))
+        svc_mark_all_read(cursor, session['user_id'])
     return jsonify({'success': True})
 
 @reports_bp.route('/notifications/<int:notification_id>/delete', methods=['POST'])
@@ -282,7 +285,7 @@ def delete_notification(notification_id):
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
     with get_db() as (conn, cursor):
-        cursor.execute("DELETE FROM notifications WHERE notification_id=%s AND user_id=%s", (notification_id, session['user_id']))
+        svc_delete_notif(cursor, session['user_id'], notification_id)
     return jsonify({'success': True})
 
 @reports_bp.route('/notifications/clear', methods=['POST'])
@@ -290,5 +293,5 @@ def clear_notifications():
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
     with get_db() as (conn, cursor):
-        cursor.execute("DELETE FROM notifications WHERE user_id=%s", (session['user_id'],))
+        svc_clear_all(cursor, session['user_id'])
     return jsonify({'success': True})

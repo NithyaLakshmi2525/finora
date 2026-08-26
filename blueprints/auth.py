@@ -10,6 +10,7 @@ from services.settlement_service import build_settlements_summary
 from services.notification_service import check_opportunistic_notifications, get_notification_prefs
 from services.recurring_service import process_due_auto_charges
 from services.account_service import reset_user_financial_data
+from services.budget_service import get_user_budgets
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -30,42 +31,44 @@ def home():
         process_due_auto_charges(user_id, cursor, conn, get_notification_prefs, None)
         check_opportunistic_notifications(cursor, user_id)
 
-        # Monthly Budget & Expenses
-        cursor.execute("SELECT monthly_limit FROM budgets WHERE user_id=%s LIMIT 1", (user_id,))
-        b_row = cursor.fetchone()
-        monthly_budget = float(b_row[0]) if (b_row and b_row[0]) else 0.0
+        # Lifetime Summary
+        cursor.execute("SELECT COALESCE(SUM(amount), 0) FROM income WHERE user_id=%s", (user_id,))
+        lifetime_income = float(cursor.fetchone()[0])
 
-        cursor.execute(
-            "SELECT COALESCE(SUM(amount), 0) FROM expenses "
-            "WHERE user_id=%s AND DATE_FORMAT(expense_date, '%Y-%m') = DATE_FORMAT(CURRENT_DATE(), '%Y-%m')",
-            (user_id,)
-        )
-        total_expenses = float(cursor.fetchone()[0])
+        cursor.execute("SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE user_id=%s", (user_id,))
+        lifetime_expenses = float(cursor.fetchone()[0])
 
-        # Monthly Income
+        # Monthly Income & Monthly Expenses (Current Month)
         cursor.execute(
             "SELECT COALESCE(SUM(amount), 0) FROM income "
-            "WHERE user_id=%s AND DATE_FORMAT(income_date, '%Y-%m') = DATE_FORMAT(CURRENT_DATE(), '%Y-%m')",
+            "WHERE user_id=%s AND DATE_FORMAT(income_date, '%%Y-%%m') = DATE_FORMAT(CURRENT_DATE(), '%%Y-%%m')",
             (user_id,)
         )
         monthly_income = float(cursor.fetchone()[0])
 
-        net_cash_flow = monthly_income - total_expenses
-        savings_rate = ((monthly_income - total_expenses) / monthly_income * 100.0) if monthly_income > 0 else 0.0
+        cursor.execute(
+            "SELECT COALESCE(SUM(amount), 0) FROM expenses "
+            "WHERE user_id=%s AND DATE_FORMAT(expense_date, '%%Y-%%m') = DATE_FORMAT(CURRENT_DATE(), '%%Y-%%m')",
+            (user_id,)
+        )
+        monthly_expenses = float(cursor.fetchone()[0])
+
+        net_cash_flow = monthly_income - monthly_expenses
+        savings_rate = ((monthly_income - monthly_expenses) / monthly_income * 100.0) if monthly_income > 0 else 0.0
 
         # Recent Transactions
         cursor.execute(
-            "SELECT DATE_FORMAT(expense_date, '%d %b %Y'), category, description, amount "
+            "SELECT DATE_FORMAT(expense_date, '%%d %%b %%Y'), category, description, amount "
             "FROM expenses WHERE user_id=%s ORDER BY expense_date DESC, expense_id DESC LIMIT 5",
             (user_id,)
         )
         raw_recent = cursor.fetchall()
         recent_expenses = [(r[0], r[1], r[2], float(r[3] or 0)) for r in raw_recent]
 
-        # Category Breakdown for Chart
+        # Category Breakdown for Chart (Current Month)
         cursor.execute(
             "SELECT category, SUM(amount) FROM expenses "
-            "WHERE user_id=%s AND DATE_FORMAT(expense_date, '%Y-%m') = DATE_FORMAT(CURRENT_DATE(), '%Y-%m') "
+            "WHERE user_id=%s AND DATE_FORMAT(expense_date, '%%Y-%%m') = DATE_FORMAT(CURRENT_DATE(), '%%Y-%%m') "
             "GROUP BY category",
             (user_id,)
         )
@@ -75,36 +78,83 @@ def home():
 
         cursor.execute(
             "SELECT COALESCE(SUM(amount), 0) FROM expenses "
-            "WHERE user_id=%s AND DATE_FORMAT(expense_date, '%Y-%m') = DATE_FORMAT(CURRENT_DATE() - INTERVAL 1 MONTH, '%Y-%m')",
+            "WHERE user_id=%s AND DATE_FORMAT(expense_date, '%%Y-%%m') = DATE_FORMAT(CURRENT_DATE() - INTERVAL 1 MONTH, '%%Y-%%m')",
             (user_id,)
         )
         last_month = float(cursor.fetchone()[0])
 
-        change_percentage = round(((total_expenses - last_month) / last_month * 100.0), 1) if last_month > 0 else 0.0
+        change_percentage = round(((monthly_expenses - last_month) / last_month * 100.0), 1) if last_month > 0 else 0.0
+
+        # All-time top category
+        cursor.execute(
+            "SELECT category, SUM(amount) as total, COUNT(*) as cnt FROM expenses "
+            "WHERE user_id=%s GROUP BY category ORDER BY total DESC LIMIT 1",
+            (user_id,)
+        )
+        top_cat_row = cursor.fetchone()
+        top_category = (top_cat_row[0], float(top_cat_row[1]), top_cat_row[2]) if top_cat_row else None
+
+        # Budget information via budget_service
+        user_budgets_info = get_user_budgets(cursor, user_id)
+        overall_b = user_budgets_info.get('overall', user_budgets_info.get('overall_budget', {}))
+        cat_budgets = user_budgets_info.get('category_budgets', [])
+
+        has_overall = overall_b.get('limit', 0.0) > 0
+        has_cat = len(cat_budgets) > 0
+
+        if has_overall:
+            budget_limit = overall_b['limit']
+            budget_spent = overall_b['spent']
+            budget_pct = overall_b['percentage']
+            budget_label = "Overall Budget"
+            budget_summary_text = f"of ₹{budget_limit:,.0f} monthly limit"
+            has_budget = True
+        elif has_cat:
+            budget_limit = sum(b['limit'] for b in cat_budgets)
+            budget_spent = sum(b['spent'] for b in cat_budgets)
+            budget_pct = (budget_spent / budget_limit * 100.0) if budget_limit > 0 else 0.0
+            budget_label = f"{len(cat_budgets)} Category Budget{'s' if len(cat_budgets) != 1 else ''}"
+            budget_summary_text = f"of ₹{budget_limit:,.0f} total category limits"
+            has_budget = True
+        else:
+            budget_limit = 0.0
+            budget_spent = 0.0
+            budget_pct = 0.0
+            budget_label = "No Budget Set"
+            budget_summary_text = "No budget limits configured"
+            has_budget = False
+
         insights = build_smart_insights(cursor, user_id)
         goal_summary = build_goal_summary(cursor, user_id)
         settlements_summary = build_settlements_summary(cursor, user_id)
-        budget_percentage = (total_expenses / monthly_budget * 100.0) if monthly_budget > 0 else 0.0
 
     return render_template(
         'dashboard/dashboard.html',
         username=session['username'],
         display_name=session.get('display_name', session['username']),
-        monthly_budget=monthly_budget,
-        budget_percentage=budget_percentage,
-        total_expenses=total_expenses,
-        total_spent=total_expenses,
-        this_month=total_expenses,
+        monthly_budget=budget_limit,
+        budget=budget_limit,
+        budget_limit=budget_limit,
+        budget_spent=budget_spent,
+        budget_percentage=budget_pct,
+        budget_label=budget_label,
+        budget_summary_text=budget_summary_text,
+        has_budget=has_budget,
+        total_expenses=lifetime_expenses,
+        total_spent=lifetime_expenses,
+        total_income=lifetime_income,
+        this_month=monthly_expenses,
+        monthly_expenses=monthly_expenses,
         last_month=last_month,
         change_percentage=change_percentage,
         monthly_income=monthly_income,
-        total_income=monthly_income,
         net_cash_flow=net_cash_flow,
         projected_position=net_cash_flow,
         savings_rate=savings_rate,
         recent_expenses=recent_expenses,
         chart_labels=chart_labels,
         chart_values=chart_values,
+        top_category=top_category,
         insights=insights,
         goal_summary=goal_summary,
         settlements_summary=settlements_summary,

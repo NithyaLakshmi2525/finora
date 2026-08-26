@@ -1,4 +1,5 @@
 import pytest
+from datetime import date
 from db import get_db
 from werkzeug.security import generate_password_hash
 from services.settlement_service import build_settlements_summary
@@ -42,7 +43,7 @@ def dual_users(app, client):
 # ==============================================================================
 
 def test_notification_read_and_badge_flow(client, dual_users):
-    """Verifies notification count, reading notification, badge disappearance, and user isolation."""
+    """Verifies notification count, reading notification, mark-all-read, clear-all, and user isolation."""
     client.get('/logout')
     uid_a = dual_users['id_a']
     uid_b = dual_users['id_b']
@@ -77,16 +78,25 @@ def test_notification_read_and_badge_flow(client, dual_users):
     a1_item = next(n for n in data['notifications'] if n['id'] == nid_a1)
     assert a1_item['is_read'] is True
 
-    # Mark all read for User A
+    # Mark all read for User A (DB is_read updated to 1 without deleting)
     res = client.post('/notifications/read-all')
     assert res.status_code == 200
 
-    # Unread count reaches zero
     res = client.get('/notifications')
     data = res.get_json()
     assert data['unread_count'] == 0
+    assert len(data['notifications']) == 2  # Still present in history!
 
-    # User A cannot read User B's notification
+    # Clear all notifications for User A (DB rows deleted)
+    res = client.post('/notifications/clear')
+    assert res.status_code == 200
+
+    res = client.get('/notifications')
+    data = res.get_json()
+    assert data['unread_count'] == 0
+    assert len(data['notifications']) == 0  # Completely cleared!
+
+    # User A cannot clear or read User B's notification
     client.post(f'/notifications/read/{nid_b1}')
     with get_db() as (conn, cursor):
         cursor.execute("SELECT is_read FROM notifications WHERE notification_id=%s", (nid_b1,))
@@ -157,6 +167,7 @@ def test_monthly_report_tabs_and_rendering(client, dual_users):
     """Verifies /monthly-report loads and renders Overview, Analytics, Insights, Exports tabs with full content."""
     client.get('/logout')
     uid_a = dual_users['id_a']
+    today_str = date.today().strftime('%Y-%m')
     client.post('/login', data={'email': dual_users['email_a'], 'password': dual_users['pw']}, follow_redirects=True)
 
     # 1. Empty data user receives non-blank page with intentional empty state
@@ -166,11 +177,11 @@ def test_monthly_report_tabs_and_rendering(client, dual_users):
     assert b'Total Spent' in res.data
     assert b'No expense history yet' in res.data or b'Add First Expense' in res.data
 
-    # 2. Seed income & expenses
+    # 2. Seed income & expenses for current month
     with get_db() as (conn, cursor):
-        cursor.execute("INSERT INTO income (user_id, source, amount, income_date) VALUES (%s, 'Salary', 80000.00, '2026-08-01')", (uid_a,))
-        cursor.execute("INSERT INTO expenses (user_id, amount, category, description, expense_date) VALUES (%s, 1500.00, 'Food', 'Groceries', '2026-08-10')", (uid_a,))
-        cursor.execute("INSERT INTO expenses (user_id, amount, category, description, expense_date) VALUES (%s, 2500.00, 'Bills', 'Electricity', '2026-08-15')", (uid_a,))
+        cursor.execute(f"INSERT INTO income (user_id, source, amount, income_date) VALUES (%s, 'Salary', 80000.00, '{today_str}-01')", (uid_a,))
+        cursor.execute(f"INSERT INTO expenses (user_id, amount, category, description, expense_date) VALUES (%s, 1500.00, 'Food', 'Groceries', '{today_str}-05')", (uid_a,))
+        cursor.execute(f"INSERT INTO expenses (user_id, amount, category, description, expense_date) VALUES (%s, 2500.00, 'Bills', 'Electricity', '{today_str}-10')", (uid_a,))
 
     # Overview tab
     res = client.get('/monthly-report?tab=overview')
@@ -226,3 +237,61 @@ def test_reports_unauthenticated_access_rejected(client):
     res = client.get('/export-pdf', follow_redirects=False)
     assert res.status_code in (302, 303)
     assert '/login' in res.headers['Location']
+
+
+# ==============================================================================
+# 4. DASHBOARD UX & DATA ACCURACY TESTS
+# ==============================================================================
+
+def test_dashboard_ux_and_data_accuracy(client, dual_users):
+    """Verifies budget threshold, smart insights icons/titles, and current-month financial metrics."""
+    client.get('/logout')
+    uid_a = dual_users['id_a']
+    today_str = date.today().strftime('%Y-%m')
+
+    client.post('/login', data={'email': dual_users['email_a'], 'password': dual_users['pw']}, follow_redirects=True)
+
+    # 1. No budgets set -> Dashboard shows "No budget set"
+    res = client.get('/')
+    assert res.status_code == 200
+    assert b'No budget set' in res.data or b'No Budget Set' in res.data
+
+    # 2. Overall budget set -> Dashboard displays Overall Budget
+    with get_db() as (conn, cursor):
+        cursor.execute("INSERT INTO budgets (user_id, category, monthly_limit) VALUES (%s, 'Overall', 50000.00)", (uid_a,))
+
+    res = client.get('/')
+    assert res.status_code == 200
+    assert b'Overall Budget' in res.data
+    assert b'50,000' in res.data
+
+    # 3. Category budgets only -> Dashboard displays category budgets summary
+    with get_db() as (conn, cursor):
+        cursor.execute("DELETE FROM budgets WHERE user_id=%s", (uid_a,))
+        cursor.execute("INSERT INTO budgets (user_id, category, monthly_limit) VALUES (%s, 'Food', 6000.00)", (uid_a,))
+        cursor.execute("INSERT INTO budgets (user_id, category, monthly_limit) VALUES (%s, 'Shopping', 4000.00)", (uid_a,))
+
+    res = client.get('/')
+    assert res.status_code == 200
+    assert b'2 Category Budgets' in res.data or b'Category Budget' in res.data
+    assert b'10,000' in res.data
+
+    # 4. Seed transactions for current month and prior month to verify time boundary isolation
+    with get_db() as (conn, cursor):
+        # Prior month income: 100,000
+        cursor.execute("INSERT INTO income (user_id, source, amount, income_date) VALUES (%s, 'Bonus', 100000.00, '2026-01-01')", (uid_a,))
+        # Current month income: 40,000
+        cursor.execute(f"INSERT INTO income (user_id, source, amount, income_date) VALUES (%s, 'Salary', 40000.00, '{today_str}-01')", (uid_a,))
+        # Current month expenses: 10,000
+        cursor.execute(f"INSERT INTO expenses (user_id, amount, category, description, expense_date) VALUES (%s, 10000.00, 'Food', 'Groceries', '{today_str}-05')", (uid_a,))
+
+    res = client.get('/')
+    assert res.status_code == 200
+    # Lifetime income card shows 140,000
+    assert b'140,000' in res.data
+    # Smart Insights show Top Expense Category & Savings Rate without leaking raw identifiers
+    assert b'Top Expense Category' in res.data
+    assert b'Healthy Savings Rate' in res.data
+    assert b'75.0%' in res.data  # (40k - 10k) / 40k = 75.0%
+
+    client.get('/logout')

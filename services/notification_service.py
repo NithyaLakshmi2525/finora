@@ -128,3 +128,23 @@ def check_opportunistic_notifications(cursor, user_id):
         generate_opportunistic_notifications(cursor, user_id)
     except Exception as e:
         print(f"[notifications] background check skipped (user_id={user_id}): {e}")
+
+def mark_notification_read(cursor, user_id, notification_id):
+    """Marks a single notification as read for the user."""
+    cursor.execute(
+        "UPDATE notifications SET is_read=1 WHERE notification_id=%s AND user_id=%s",
+        (notification_id, user_id)
+    )
+
+def mark_all_notifications_read(cursor, user_id):
+    """Marks all notifications as read for the user without deleting them."""
+    cursor.execute("UPDATE notifications SET is_read=1 WHERE user_id=%s", (user_id,))
+
+def delete_notification(cursor, user_id, notification_id):
+    """Deletes a single notification for the user."""
+    cursor.execute("DELETE FROM notifications WHERE notification_id=%s AND user_id=%s", (notification_id, user_id))
+
+def clear_all_notifications(cursor, user_id):
+    """Deletes all notifications for the user."""
+    cursor.execute("DELETE FROM notifications WHERE user_id=%s", (user_id,))
+

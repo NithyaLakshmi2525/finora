@@ -269,22 +269,23 @@
 
         <!-- Budget Control -->
         <div class="bg-surface-container border border-outline-variant rounded-2xl p-5">
-          <div class="flex items-center gap-2 mb-4">
-            <span class="material-symbols-outlined text-on-surface-variant" style="font-size:16px;">tune</span>
-            <h2 class="text-sm font-bold">Budget Threshold</h2>
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-on-surface-variant" style="font-size:16px;">tune</span>
+              <h2 class="text-sm font-bold">Budget Threshold</h2>
+            </div>
+            <span class="text-xs font-semibold text-on-surface-variant/70">{{ budget_label }}</span>
           </div>
-          <p class="text-[28px] font-extrabold leading-none mb-1">
-            {% if budget and budget > 0 %}₹{{ "{:,.0f}".format(budget) }}{% else %}<span class="text-on-surface-variant/40">Not set</span>{% endif %}
-          </p>
-          <p class="text-xs text-on-surface-variant mb-4">Monthly spending limit</p>
-          <form method="POST" class="flex gap-2">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-            <input type="number" name="budget" placeholder="New limit…" min="0" required class="inp" style="padding:9px 12px; font-size:13px;">
-            <button type="submit"
-              class="flex-shrink-0 bg-primary text-on-primary px-4 py-2 rounded-xl font-bold hover:brightness-110 transition-all text-sm">
-              Save
-            </button>
-          </form>
+          {% if has_budget %}
+          <p class="text-[28px] font-extrabold leading-none mb-1">₹{{ "{:,.0f}".format(budget_limit) }}</p>
+          <p class="text-xs text-on-surface-variant mb-4">{{ budget_summary_text }}</p>
+          {% else %}
+          <p class="text-[28px] font-extrabold leading-none text-on-surface-variant/40 mb-1">No budget set</p>
+          <p class="text-xs text-on-surface-variant mb-4">Set limits to track your monthly spending.</p>
+          {% endif %}
+          <a href="/budgets" class="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline">
+            Manage Budgets <span class="material-symbols-outlined" style="font-size:13px;">arrow_forward</span>
+          </a>
         </div>
 
         <!-- Smart Insights -->
@@ -293,11 +294,22 @@
             <span class="material-symbols-outlined text-primary" style="font-size:16px;">lightbulb</span>
             <h2 class="text-sm font-bold">Smart Insights</h2>
           </div>
-          <div>
+          <div class="flex flex-col gap-2.5">
             {% for insight in insights %}
-            <div class="insight-row">
-              <span class="text-base flex-shrink-0 mt-0.5">{{ insight.icon }}</span>
-              <p class="text-sm text-on-surface-variant leading-snug">{{ insight.text }}</p>
+            <div class="insight-row flex items-start gap-2.5 pb-2.5 border-b border-outline-variant/30 last:border-b-0 last:pb-0">
+              <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5
+                {% if insight.type == 'danger' %}bg-error/10 text-error
+                {% elif insight.type == 'warning' %}bg-yellow-400/10 text-yellow-400
+                {% elif insight.type == 'success' %}bg-primary/10 text-primary
+                {% else %}bg-secondary/10 text-secondary{% endif %}">
+                <span class="material-symbols-outlined" style="font-size:16px;">{{ insight.icon }}</span>
+              </div>
+              <div class="min-w-0">
+                {% if insight.title %}
+                <p class="text-xs font-bold text-on-surface mb-0.5 leading-tight">{{ insight.title }}</p>
+                {% endif %}
+                <p class="text-xs text-on-surface-variant leading-snug">{{ insight.text }}</p>
+              </div>
             </div>
             {% else %}
             <p class="text-sm text-on-surface-variant/60">Add expenses to start seeing personalised insights.</p>

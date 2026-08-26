@@ -156,8 +156,19 @@ function handleNotifClick(event, el) {
     }
   });
 }
+const getNotifCsrfToken = () => {
+  const meta = document.querySelector('meta[name="csrf-token"]');
+  if (meta && meta.content) return meta.content;
+  return "{{ csrf_token() if csrf_token is defined else '' }}";
+};
+
 function markNotifRead(id) {
-  return fetch('/notifications/read/' + id, { method: 'POST', credentials: 'same-origin' })
+  const token = getNotifCsrfToken();
+  return fetch('/notifications/read/' + id, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'X-CSRFToken': token, 'X-Requested-With': 'XMLHttpRequest' }
+  })
     .then(res => {
       if (!res.ok) throw new Error('Failed to mark notification as read (status ' + res.status + ')');
       return loadNotifications();
@@ -167,7 +178,12 @@ function markNotifRead(id) {
     });
 }
 function markAllNotifRead() {
-  fetch('/notifications/read-all', { method: 'POST', credentials: 'same-origin' })
+  const token = getNotifCsrfToken();
+  fetch('/notifications/read-all', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'X-CSRFToken': token, 'X-Requested-With': 'XMLHttpRequest' }
+  })
     .then(res => {
       if (!res.ok) throw new Error('Failed to mark all notifications as read (status ' + res.status + ')');
       return loadNotifications();
@@ -177,14 +193,15 @@ function markAllNotifRead() {
     });
 }
 function handleDeleteNotif(event, btn) {
-  // stopPropagation isn't strictly required here (the button is a sibling
-  // of the <a>, not nested inside it, so there's no shared click target to
-  // fight over) but is kept anyway as a defensive habit, matching the
-  // kebab-menu buttons elsewhere in the app.
   event.preventDefault();
   event.stopPropagation();
   const id = btn.dataset.id;
-  fetch('/notifications/' + id + '/delete', { method: 'POST', credentials: 'same-origin' })
+  const token = getNotifCsrfToken();
+  fetch('/notifications/' + id + '/delete', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'X-CSRFToken': token, 'X-Requested-With': 'XMLHttpRequest' }
+  })
     .then(res => {
       if (!res.ok) throw new Error('Failed to delete notification (status ' + res.status + ')');
       return loadNotifications();
@@ -194,7 +211,12 @@ function handleDeleteNotif(event, btn) {
     });
 }
 function clearAllNotifications() {
-  fetch('/notifications/clear', { method: 'POST', credentials: 'same-origin' })
+  const token = getNotifCsrfToken();
+  fetch('/notifications/clear', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'X-CSRFToken': token, 'X-Requested-With': 'XMLHttpRequest' }
+  })
     .then(res => {
       if (!res.ok) throw new Error('Failed to clear notifications (status ' + res.status + ')');
       return loadNotifications();
