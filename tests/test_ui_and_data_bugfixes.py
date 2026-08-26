@@ -3,6 +3,7 @@ from datetime import date
 from db import get_db
 from werkzeug.security import generate_password_hash
 from services.settlement_service import build_settlements_summary
+from services.ledger_service import build_income_context
 
 def _clean_user_by_email(email):
     with get_db() as (conn, cursor):
@@ -245,11 +246,9 @@ def test_dashboard_ux_and_goals_rendering(client, dual_users):
     assert b'12,000' in res.data
 
     # 4. Savings Goals rendering: Active vs Closed vs Empty
-    # Initially no goals -> 'No goals yet'
     res = client.get('/')
     assert b'No goals yet' in res.data
 
-    # Add active goal for User A & closed goal for User A & active goal for User B
     with get_db() as (conn, cursor):
         cursor.execute("INSERT INTO savings_goals (user_id, goal_name, target_amount, current_amount, icon) VALUES (%s, 'Emergency Fund', 100000.00, 25000.00, '🛡️')", (uid_a,))
         cursor.execute("INSERT INTO savings_goals (user_id, goal_name, target_amount, current_amount, closed_at) VALUES (%s, 'Old Car', 50000.00, 50000.00, NOW())", (uid_a,))
@@ -260,15 +259,15 @@ def test_dashboard_ux_and_goals_rendering(client, dual_users):
     assert b'25,000' in res.data
     assert b'100,000' in res.data
     assert b'25%' in res.data
-    assert b'Old Car' not in res.data  # Closed goal hidden!
-    assert b'User B Vacation' not in res.data  # Isolated from User B!
+    assert b'Old Car' not in res.data
+    assert b'User B Vacation' not in res.data
 
     # 5. Recent Expenses Date Formatting
     with get_db() as (conn, cursor):
         cursor.execute(f"INSERT INTO expenses (user_id, amount, category, description, expense_date) VALUES (%s, 1200.00, 'Food', 'Dinner', '{today_str}-15')", (uid_a,))
 
     res = client.get('/')
-    assert b'%d %b %Y' not in res.data  # Raw strftime string MUST NOT be present!
+    assert b'%d %b %Y' not in res.data
     assert b'Dinner' in res.data
 
     client.get('/logout')
@@ -336,5 +335,89 @@ def test_export_csv_filters_preservation(client, dual_users):
     lines = [l for l in res.data.decode('utf-8').strip().split('\n') if l]
     assert len(lines) == 5  # Header + 3 expenses + 1 income
     assert 'Monthly Pay' in res.data.decode('utf-8')
+
+    client.get('/logout')
+
+
+# ==============================================================================
+# 6. INCOME PAGE AVERAGE & TOP SOURCE TESTS
+# ==============================================================================
+
+def test_income_page_average_and_top_source(client, dual_users):
+    """Verifies total income, average income = total / count, top source calculation, and zero safety."""
+    client.get('/logout')
+    uid_a = dual_users['id_a']
+    uid_b = dual_users['id_b']
+
+    # 1. Zero income rows -> total = 0, avg = 0, top_source = None
+    with get_db() as (conn, cursor):
+        ctx = build_income_context(cursor, uid_a)
+        assert ctx['total_income'] == 0.0
+        assert ctx['avg_income'] == 0.0
+        assert ctx['top_source'] is None
+
+    # 2. Add 3 entries: 500,000 (Salary), 1,000 (Family Support), 500 (Gift)
+    with get_db() as (conn, cursor):
+        cursor.execute("INSERT INTO income (user_id, source, amount, income_date) VALUES (%s, 'Salary', 500000.00, '2026-08-01')", (uid_a,))
+        cursor.execute("INSERT INTO income (user_id, source, amount, income_date) VALUES (%s, 'Family Support', 1000.00, '2026-08-05')", (uid_a,))
+        cursor.execute("INSERT INTO income (user_id, source, amount, income_date) VALUES (%s, 'Gift', 500.00, '2026-08-10')", (uid_a,))
+        # User B income (isolated)
+        cursor.execute("INSERT INTO income (user_id, source, amount, income_date) VALUES (%s, 'User B Business', 999999.00, '2026-08-12')", (uid_b,))
+
+    client.post('/login', data={'email': dual_users['email_a'], 'password': dual_users['pw']}, follow_redirects=True)
+    res = client.get('/income')
+    assert res.status_code == 200
+
+    with get_db() as (conn, cursor):
+        ctx = build_income_context(cursor, uid_a)
+        assert ctx['total_income'] == 501500.0
+        assert ctx['income_count'] == 3
+        assert round(ctx['avg_income'], 2) == round(501500.0 / 3, 2)  # 167,166.67
+        assert ctx['top_source'] == 'Salary'
+        assert ctx['top_source_amount'] == 500000.0
+
+    # HTML contains calculated average & top source, not User B data
+    assert b'501,500' in res.data
+    assert b'167,167' in res.data or b'167,166' in res.data
+    assert b'Salary' in res.data
+    assert b'User B Business' not in res.data
+
+    client.get('/logout')
+
+
+# ==============================================================================
+# 7. ACCOUNTS & BUDGETS PAGE DATA & UI TESTS
+# ==============================================================================
+
+def test_accounts_and_budgets_page_rendering(client, dual_users):
+    """Verifies Accounts and Budgets pages render real data, net worth, and empty states cleanly."""
+    client.get('/logout')
+    uid_a = dual_users['id_a']
+    client.post('/login', data={'email': dual_users['email_a'], 'password': dual_users['pw']}, follow_redirects=True)
+
+    # Accounts Page
+    res = client.get('/accounts')
+    assert res.status_code == 200
+    assert b'Accounts &amp; Ledger' in res.data or b'Accounts & Ledger' in res.data
+    assert b'Total Net Worth' in res.data
+    assert b'10,000' in res.data  # Initial balance of Checking A
+
+    # Budgets Page: No overall budget -> Displays "No overall budget set"
+    with get_db() as (conn, cursor):
+        cursor.execute("DELETE FROM budgets WHERE user_id=%s", (uid_a,))
+
+    res = client.get('/budgets')
+    assert res.status_code == 200
+    assert b'No overall budget set' in res.data
+    assert b'NORMAL (0.0%)' not in res.data  # Fake 0% state eliminated!
+
+    # Budgets Page: Set overall budget -> Displays configured metrics
+    with get_db() as (conn, cursor):
+        cursor.execute("INSERT INTO budgets (user_id, category, monthly_limit) VALUES (%s, 'Overall', 30000.00)", (uid_a,))
+
+    res = client.get('/budgets')
+    assert res.status_code == 200
+    assert b'Overall Monthly Target' in res.data
+    assert b'30,000' in res.data
 
     client.get('/logout')

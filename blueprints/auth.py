@@ -41,14 +41,14 @@ def home():
         # Monthly Income & Monthly Expenses (Current Month)
         cursor.execute(
             "SELECT COALESCE(SUM(amount), 0) FROM income "
-            "WHERE user_id=%s AND DATE_FORMAT(income_date, '%%Y-%%m') = DATE_FORMAT(CURRENT_DATE(), '%%Y-%%m')",
+            "WHERE user_id=%s AND DATE_FORMAT(income_date, '%Y-%m') = DATE_FORMAT(CURRENT_DATE(), '%Y-%m')",
             (user_id,)
         )
         monthly_income = float(cursor.fetchone()[0])
 
         cursor.execute(
             "SELECT COALESCE(SUM(amount), 0) FROM expenses "
-            "WHERE user_id=%s AND DATE_FORMAT(expense_date, '%%Y-%%m') = DATE_FORMAT(CURRENT_DATE(), '%%Y-%%m')",
+            "WHERE user_id=%s AND DATE_FORMAT(expense_date, '%Y-%m') = DATE_FORMAT(CURRENT_DATE(), '%Y-%m')",
             (user_id,)
         )
         monthly_expenses = float(cursor.fetchone()[0])
@@ -68,7 +68,7 @@ def home():
         # Category Breakdown for Chart (Current Month)
         cursor.execute(
             "SELECT category, SUM(amount) FROM expenses "
-            "WHERE user_id=%s AND DATE_FORMAT(expense_date, '%%Y-%%m') = DATE_FORMAT(CURRENT_DATE(), '%%Y-%%m') "
+            "WHERE user_id=%s AND DATE_FORMAT(expense_date, '%Y-%m') = DATE_FORMAT(CURRENT_DATE(), '%Y-%m') "
             "GROUP BY category",
             (user_id,)
         )
@@ -78,7 +78,7 @@ def home():
 
         cursor.execute(
             "SELECT COALESCE(SUM(amount), 0) FROM expenses "
-            "WHERE user_id=%s AND DATE_FORMAT(expense_date, '%%Y-%%m') = DATE_FORMAT(CURRENT_DATE() - INTERVAL 1 MONTH, '%%Y-%%m')",
+            "WHERE user_id=%s AND DATE_FORMAT(expense_date, '%Y-%m') = DATE_FORMAT(CURRENT_DATE() - INTERVAL 1 MONTH, '%Y-%m')",
             (user_id,)
         )
         last_month = float(cursor.fetchone()[0])

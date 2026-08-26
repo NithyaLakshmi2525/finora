@@ -48,7 +48,7 @@ def csv_escape(val):
         s = '"' + s.replace('"', '""') + '"'
     return s
 
-def fetch_filtered_transactions(cursor, user_id, start_date=None, end_date=None, category=None, search=None, sort_order='desc', show_income=False):
+def fetch_filtered_transactions(cursor, user_id, start_date=None, end_date=None, category=None, search=None, sort_order='desc', show_income=False, limit=None, offset=None):
     order_dir = 'ASC' if str(sort_order).lower() == 'asc' else 'DESC'
 
     if show_income:
@@ -87,6 +87,9 @@ def fetch_filtered_transactions(cursor, user_id, start_date=None, end_date=None,
             params.extend([f"%{search}%", f"%{search}%"])
 
         query += f" ORDER BY tx_date {order_dir}, id {order_dir}"
+        if limit is not None and offset is not None:
+            query += " LIMIT %s OFFSET %s"
+            params.extend([int(limit), int(offset)])
         cursor.execute(query, tuple(params))
         return cursor.fetchall()
 
@@ -106,6 +109,9 @@ def fetch_filtered_transactions(cursor, user_id, start_date=None, end_date=None,
         params.extend([f"%{search}%", f"%{search}%"])
 
     query += f" ORDER BY expense_date {order_dir}, expense_id {order_dir}"
+    if limit is not None and offset is not None:
+        query += " LIMIT %s OFFSET %s"
+        params.extend([int(limit), int(offset)])
     cursor.execute(query, tuple(params))
     return cursor.fetchall()
 
@@ -126,15 +132,29 @@ def build_income_context(cursor, user_id, page=1, per_page=10):
         (user_id, per_page, offset)
     )
     income_rows = cursor.fetchall()
+
+    avg_income = (total_income / total_count) if total_count > 0 else 0.0
+
+    cursor.execute(
+        "SELECT source, SUM(amount) AS total FROM income WHERE user_id=%s "
+        "GROUP BY source ORDER BY total DESC, source ASC LIMIT 1",
+        (user_id,)
+    )
+    top_row = cursor.fetchone()
+    top_source = top_row[0] if top_row else None
+    top_source_amount = float(top_row[1]) if top_row else 0.0
     
     return {
         'total_income': total_income,
-        'avg_income': total_income,
+        'avg_income': avg_income,
         'this_month': total_income,
         'monthly_income': total_income,
         'income_rows': income_rows,
         'income_list': income_rows,
+        'income_count': total_count,
+        'total_count': total_count,
+        'top_source': top_source,
+        'top_source_amount': top_source_amount,
         'page': page,
         'total_pages': total_pages,
-        'total_count': total_count
     }

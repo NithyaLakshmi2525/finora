@@ -2,7 +2,7 @@ import json
 from flask import Blueprint, render_template, request, redirect, session, flash, Response, jsonify
 from datetime import date
 from db import get_db
-from services.ledger_service import get_categories, build_income_context, csv_escape
+from services.ledger_service import get_categories, build_income_context, csv_escape, fetch_filtered_transactions
 from services.settlement_service import balance_expense_description
 from services.account_service import (
     get_user_accounts, get_default_account_id,
@@ -61,35 +61,41 @@ def expenses():
         return redirect('/login')
 
     user_id = session['user_id']
-    category = request.args.get('category', 'all')
+    category = request.args.get('category') or request.args.get('current_category') or 'all'
     search = request.args.get('search', '').strip()
+    start_date = request.args.get('start_date') or request.args.get('start') or ''
+    end_date = request.args.get('end_date') or request.args.get('end') or ''
+    sort_param = request.args.get('sort', 'date_desc')
+    show_income_raw = request.args.get('show_income') or request.args.get('income')
+    show_income = str(show_income_raw).lower() in ('true', '1', 'yes', 'income', 'all') if show_income_raw else False
     page = request.args.get('page', 1, type=int)
     per_page = 10
 
+    # Determine sort direction for fetch_filtered_transactions
+    if sort_param == 'amount_asc':
+        sort_order = 'asc'
+    elif sort_param == 'amount_desc':
+        sort_order = 'desc'
+    elif sort_param == 'date_asc':
+        sort_order = 'asc'
+    else:
+        sort_order = 'desc'
+
     with get_db() as (conn, cursor):
-        query = "SELECT expense_id, expense_date, category, description, amount, recurring_id, account_id FROM expenses WHERE user_id=%s"
-        params = [user_id]
-
-        if category != 'all':
-            query += " AND category=%s"
-            params.append(category)
-
-        if search:
-            query += " AND (description LIKE %s OR category LIKE %s)"
-            params.extend([f"%{search}%", f"%{search}%"])
-
-        cursor.execute(f"SELECT COUNT(*) FROM ({query}) as count_table", tuple(params))
-        total_items = cursor.fetchone()[0]
-
+        all_matching = fetch_filtered_transactions(
+            cursor, user_id, start_date=start_date, end_date=end_date,
+            category=category, search=search, sort_order=sort_order, show_income=show_income
+        )
+        total_items = len(all_matching)
         total_pages = max(1, (total_items + per_page - 1) // per_page)
         page = max(1, min(page, total_pages))
         offset = (page - 1) * per_page
 
-        query += " ORDER BY expense_date DESC, expense_id DESC LIMIT %s OFFSET %s"
-        params.extend([per_page, offset])
-
-        cursor.execute(query, tuple(params))
-        expense_list = cursor.fetchall()
+        expense_list = fetch_filtered_transactions(
+            cursor, user_id, start_date=start_date, end_date=end_date,
+            category=category, search=search, sort_order=sort_order, show_income=show_income,
+            limit=per_page, offset=offset
+        )
 
         cursor.execute(
             "SELECT COALESCE(SUM(amount), 0) FROM expenses "
@@ -116,9 +122,15 @@ def expenses():
         user_accounts=user_accounts,
         current_category=category,
         search_query=search,
+        search=search,
+        start_date=start_date,
+        end_date=end_date,
+        sort=sort_param,
+        show_income=show_income_raw if show_income_raw else '',
         page=page,
         total_pages=total_pages,
         total_items=total_items,
+        expense_count=total_items,
         current_month_total=current_month_total,
         total_expenses=current_month_total,
         total_spent=current_month_total,
