@@ -129,3 +129,29 @@ def get_accounts_summary(cursor, user_id):
         'type_totals': type_totals,
         'account_types': ACCOUNT_TYPES
     }
+
+def reset_user_financial_data(cursor, user_id):
+    """Safely resets all user-owned financial and application data while preserving the user account."""
+    tables_to_clear = [
+        'goal_contributions',
+        'savings_goals',
+        'settlements',
+        'recurring_expenses',
+        'recurring_income',
+        'expenses',
+        'income',
+        'budgets',
+        'notifications',
+        'notification_preferences',
+        'accounts'
+    ]
+    for table in tables_to_clear:
+        cursor.execute(f"DELETE FROM {table} WHERE user_id = %s", (user_id,))
+
+    # Re-initialize fresh defaults for user
+    cursor.execute("INSERT INTO notification_preferences (user_id) VALUES (%s)", (user_id,))
+    cursor.execute(
+        "INSERT INTO accounts (user_id, name, account_type, balance, currency) "
+        "VALUES (%s, 'Main Account', 'checking', 0.00, 'INR')",
+        (user_id,)
+    )

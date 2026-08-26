@@ -62,7 +62,12 @@ def test_google_oauth_flow(client, app, monkeypatch):
 
     # Clean test user if exists
     with get_db() as (conn, cursor):
-        cursor.execute("DELETE FROM users WHERE email='oauth_user@example.com'")
+        cursor.execute("SELECT user_id FROM users WHERE email='oauth_user@example.com'")
+        row = cursor.fetchone()
+        if row:
+            u_id = row[0]
+            for tbl in ['password_resets', 'goal_contributions', 'savings_goals', 'settlements', 'recurring_expenses', 'recurring_income', 'expenses', 'income', 'budgets', 'notifications', 'notification_preferences', 'accounts', 'users']:
+                cursor.execute(f"DELETE FROM {tbl} WHERE user_id=%s", (u_id,))
 
     # 1. Test /login/google redirect
     res = client.get('/login/google')

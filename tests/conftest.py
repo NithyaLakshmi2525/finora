@@ -1,5 +1,6 @@
 import pytest
 import os
+from werkzeug.security import generate_password_hash
 from app import create_app
 from db import get_db
 
@@ -29,9 +30,10 @@ def test_user():
             _clean_user(cursor, uid)
             cursor.execute("DELETE FROM users WHERE user_id=%s", (uid,))
 
+        pw_hash = generate_password_hash('Password@123')
         cursor.execute(
-            "INSERT INTO users (username, email, password, display_name) VALUES (%s, %s, 'test_hash', 'Pytest User')",
-            (TEST_USERNAME, TEST_EMAIL)
+            "INSERT INTO users (username, email, password, display_name) VALUES (%s, %s, %s, 'Pytest User')",
+            (TEST_USERNAME, TEST_EMAIL, pw_hash)
         )
         user_id = cursor.lastrowid
         cursor.execute("INSERT IGNORE INTO notification_preferences (user_id) VALUES (%s)", (user_id,))

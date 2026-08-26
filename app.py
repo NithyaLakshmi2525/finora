@@ -180,6 +180,29 @@ def ensure_schema():
                 )
             """)
 
+            # Add auth_provider column to users if missing
+            cursor.execute("""
+                SELECT COUNT(*) FROM information_schema.columns
+                WHERE table_schema = DATABASE() AND table_name = 'users' AND column_name = 'auth_provider'
+            """)
+            if cursor.fetchone()[0] == 0:
+                cursor.execute("ALTER TABLE users ADD COLUMN auth_provider VARCHAR(20) NOT NULL DEFAULT 'local'")
+
+            # Password resets table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS password_resets (
+                    reset_id INT AUTO_INCREMENT PRIMARY KEY,
+                    user_id INT NOT NULL,
+                    token_hash VARCHAR(255) NOT NULL,
+                    expires_at DATETIME NOT NULL,
+                    used_at DATETIME NULL,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_pw_resets_user (user_id),
+                    INDEX idx_pw_resets_hash (token_hash),
+                    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            """)
+
             # Accounts - Multi-account support
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS accounts (

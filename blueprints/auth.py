@@ -1,12 +1,15 @@
 from flask import Blueprint, render_template, request, redirect, session, flash, url_for, current_app
 from werkzeug.security import generate_password_hash, check_password_hash
 import secrets
+import hashlib
+from datetime import datetime, timedelta
 from db import get_db
 from services.insights_service import build_smart_insights
 from services.goal_service import build_goal_summary
 from services.settlement_service import build_settlements_summary
 from services.notification_service import check_opportunistic_notifications, get_notification_prefs
 from services.recurring_service import process_due_auto_charges
+from services.account_service import reset_user_financial_data
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -173,14 +176,19 @@ def profile():
     if 'user_id' not in session:
         return redirect('/login')
     with get_db() as (conn, cursor):
-        cursor.execute("SELECT username, email, display_name FROM users WHERE user_id=%s", (session['user_id'],))
+        cursor.execute("SELECT username, email, display_name, auth_provider FROM users WHERE user_id=%s", (session['user_id'],))
         user_info = cursor.fetchone()
+
+    auth_provider = user_info[3] if user_info and len(user_info) > 3 else 'local'
+    email = user_info[1] if user_info else ''
 
     return render_template(
         'user/profile.html',
         username=session['username'],
+        email=email,
         display_name=session.get('display_name', session['username']),
         user_info=user_info,
+        auth_provider=auth_provider,
         active_page='profile'
     )
 
@@ -231,16 +239,176 @@ def profile_change_password():
     flash("Password updated successfully!", "success")
     return redirect('/profile')
 
+@auth_bp.route('/profile/reset-account-data', methods=['POST'])
+def reset_account_data_route():
+    if 'user_id' not in session:
+        return redirect('/login')
+
+    user_id = session['user_id']
+    confirm_text = request.form.get('confirm_text', '').strip()
+
+    if confirm_text != 'RESET':
+        flash("Confirmation text must match 'RESET' exactly.", "error")
+        return redirect('/profile')
+
+    with get_db() as (conn, cursor):
+        cursor.execute("SELECT password, auth_provider, email FROM users WHERE user_id=%s", (user_id,))
+        user_row = cursor.fetchone()
+        if not user_row:
+            session.clear()
+            return redirect('/login')
+
+        user_pw, auth_provider, user_email = user_row[0], user_row[1], user_row[2]
+
+        if auth_provider == 'google':
+            confirm_email = request.form.get('confirm_email', '').strip().lower()
+            if confirm_email != (user_email or '').lower():
+                flash("Email confirmation does not match your account email.", "error")
+                return redirect('/profile')
+        else:
+            password = request.form.get('password', '')
+            if not check_password_hash(user_pw, password):
+                flash("Incorrect password. Account reset cancelled.", "error")
+                return redirect('/profile')
+
+        reset_user_financial_data(cursor, user_id)
+
+    flash("Your financial data has been completely reset. Your account remains active with a fresh ledger.", "success")
+    return redirect('/profile')
+
 @auth_bp.route('/profile/delete-account', methods=['POST'])
 def profile_delete_account():
     if 'user_id' not in session:
         return redirect('/login')
+
     user_id = session['user_id']
+    confirm_text = request.form.get('confirm_text', '').strip()
+    confirm_username = request.form.get('confirm_username', '').strip()
+
+    if confirm_text != 'DELETE':
+        flash("Confirmation text must match 'DELETE' exactly.", "error")
+        return redirect('/profile')
+
     with get_db() as (conn, cursor):
-        cursor.execute("DELETE FROM users WHERE user_id=%s", (user_id,))
+        cursor.execute("SELECT username, email, password, auth_provider FROM users WHERE user_id=%s", (user_id,))
+        user_row = cursor.fetchone()
+        if not user_row:
+            session.clear()
+            return redirect('/login')
+
+        username, email, user_pw, auth_provider = user_row[0], user_row[1], user_row[2], user_row[3]
+
+        if confirm_username.lower() not in [username.lower(), (email or '').lower()]:
+            flash("Account confirmation name/email does not match.", "error")
+            return redirect('/profile')
+
+        if auth_provider != 'google':
+            password = request.form.get('password', '')
+            if not check_password_hash(user_pw, password):
+                flash("Incorrect password. Account deletion cancelled.", "error")
+                return redirect('/profile')
+
+        # Clean all user data atomically
+        tables_to_clear = [
+            'password_resets',
+            'goal_contributions',
+            'savings_goals',
+            'settlements',
+            'recurring_expenses',
+            'recurring_income',
+            'expenses',
+            'income',
+            'budgets',
+            'notifications',
+            'notification_preferences',
+            'accounts',
+            'users'
+        ]
+        for table in tables_to_clear:
+            cursor.execute(f"DELETE FROM {table} WHERE user_id=%s", (user_id,))
+
     session.clear()
     flash("Your account and all associated data have been permanently deleted.", "success")
     return redirect('/login')
+
+@auth_bp.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
+    if 'user_id' in session:
+        return redirect('/')
+
+    if request.method == 'POST':
+        email = request.form.get('email', '').strip().lower()
+        if email:
+            with get_db() as (conn, cursor):
+                cursor.execute("SELECT user_id, auth_provider FROM users WHERE email = %s", (email,))
+                user = cursor.fetchone()
+
+                if user:
+                    user_id, auth_provider = user[0], user[1]
+                    if auth_provider == 'google':
+                        print(f"[Password Reset Log] Account for {email} uses Google Sign-In.")
+                    else:
+                        raw_token = secrets.token_urlsafe(32)
+                        token_hash = hashlib.sha256(raw_token.encode('utf-8')).hexdigest()
+                        expires_at = datetime.now() + timedelta(hours=1)
+
+                        cursor.execute("UPDATE password_resets SET used_at=NOW() WHERE user_id=%s AND used_at IS NULL", (user_id,))
+                        cursor.execute(
+                            "INSERT INTO password_resets (user_id, token_hash, expires_at) VALUES (%s, %s, %s)",
+                            (user_id, token_hash, expires_at)
+                        )
+                        reset_url = url_for('auth.reset_password', token=raw_token, _external=True)
+                        print(f"[Password Reset Log] Email: {email} | Reset Link: {reset_url}")
+
+        flash("If an account exists for that email, you will receive password reset instructions.", "info")
+        return redirect('/forgot-password')
+
+    return render_template('auth/forgot_password.html')
+
+@auth_bp.route('/reset-password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    if 'user_id' in session:
+        return redirect('/')
+
+    token_hash = hashlib.sha256(token.encode('utf-8')).hexdigest()
+    with get_db() as (conn, cursor):
+        cursor.execute(
+            "SELECT reset_id, user_id, expires_at, used_at FROM password_resets WHERE token_hash=%s",
+            (token_hash,)
+        )
+        row = cursor.fetchone()
+
+        if not row:
+            flash("Invalid or expired password reset link.", "error")
+            return redirect('/forgot-password')
+
+        reset_id, user_id, expires_at, used_at = row
+        if used_at is not None or expires_at < datetime.now():
+            flash("This password reset link has expired or already been used.", "error")
+            return redirect('/forgot-password')
+
+        if request.method == 'POST':
+            new_password = request.form.get('new_password', '')
+            confirm_password = request.form.get('confirm_password', '')
+
+            if len(new_password) < 8:
+                flash("Password must be at least 8 characters long.", "error")
+                return render_template('auth/reset_password.html', token=token)
+
+            if new_password != confirm_password:
+                flash("Passwords do not match.", "error")
+                return render_template('auth/reset_password.html', token=token)
+
+            pw_hash = generate_password_hash(new_password)
+            cursor.execute(
+                "UPDATE users SET password=%s, auth_provider='local' WHERE user_id=%s",
+                (pw_hash, user_id)
+            )
+            cursor.execute("UPDATE password_resets SET used_at=NOW() WHERE reset_id=%s", (reset_id,))
+            flash("Your password has been reset successfully! Please log in with your new password.", "success")
+            return redirect('/login')
+
+    return render_template('auth/reset_password.html', token=token)
 
 @auth_bp.route('/settings', methods=['GET', 'POST'])
 def settings():
@@ -328,7 +496,7 @@ def authorize_google():
             if not user:
                 random_pw = generate_password_hash(secrets.token_hex(32))
                 cursor.execute(
-                    "INSERT INTO users (username, email, password, display_name) VALUES (%s, %s, %s, %s)",
+                    "INSERT INTO users (username, email, password, display_name, auth_provider) VALUES (%s, %s, %s, %s, 'google')",
                     (google_email, google_email, random_pw, display_name)
                 )
                 user_id = cursor.lastrowid

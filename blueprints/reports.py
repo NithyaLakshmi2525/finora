@@ -142,8 +142,11 @@ def export_pdf():
 @reports_bp.route('/notifications')
 def get_notifications():
     if 'user_id' not in session:
-        return jsonify([])
+        return jsonify({'unread_count': 0, 'notifications': [], 'items': []})
     with get_db() as (conn, cursor):
+        cursor.execute("SELECT COUNT(*) FROM notifications WHERE user_id=%s AND is_read=0", (session['user_id'],))
+        unread_count = cursor.fetchone()[0]
+
         cursor.execute(
             "SELECT notification_id, icon, title, message, link, is_read, DATE_FORMAT(created_at, '%d %b %h:%i %p') "
             "FROM notifications WHERE user_id=%s ORDER BY created_at DESC LIMIT 20",
@@ -151,10 +154,16 @@ def get_notifications():
         )
         rows = cursor.fetchall()
 
-    return jsonify([{
+    items = [{
         'id': r[0], 'icon': r[1] or '🔔', 'title': r[2], 'message': r[3],
-        'link': r[4], 'is_read': bool(r[5]), 'time': r[6]
-    } for r in rows])
+        'link': r[4], 'is_read': bool(r[5]), 'time': r[6], 'created_at': r[6]
+    } for r in rows]
+
+    return jsonify({
+        'unread_count': unread_count,
+        'notifications': items,
+        'items': items
+    })
 
 @reports_bp.route('/notifications/read/<int:notification_id>', methods=['POST'])
 def mark_notification_read(notification_id):

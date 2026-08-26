@@ -91,12 +91,24 @@ async function loadNotifications() {
   try {
     const res = await fetch('/notifications', { credentials: 'same-origin', cache: 'no-store' });
     const data = await res.json();
+    let unreadCount = 0;
+    let items = [];
+    if (Array.isArray(data)) {
+      items = data;
+      unreadCount = items.filter(n => !n.is_read).length;
+    } else if (data && typeof data === 'object') {
+      unreadCount = data.unread_count || 0;
+      items = data.notifications || data.items || [];
+    }
+
     const badge = document.getElementById('bellBadge');
-    badge.textContent = data.unread_count > 9 ? '9+' : data.unread_count;
-    badge.classList.toggle('hidden', data.unread_count === 0);
+    if (badge) {
+      badge.textContent = unreadCount > 9 ? '9+' : unreadCount;
+      badge.classList.toggle('hidden', unreadCount <= 0);
+    }
 
     const list = document.getElementById('notifList');
-    if (!data.items || data.items.length === 0) {
+    if (!items || items.length === 0) {
       list.innerHTML = '<div class="notif-empty">You\'re all caught up 🎉</div>';
       return;
     }
@@ -212,9 +224,17 @@ async function pollUnreadCount() {
   try {
     const res = await fetch('/notifications', { credentials: 'same-origin', cache: 'no-store' });
     const data = await res.json();
+    let unreadCount = 0;
+    if (Array.isArray(data)) {
+      unreadCount = data.filter(n => !n.is_read).length;
+    } else if (data && typeof data === 'object') {
+      unreadCount = data.unread_count || 0;
+    }
     const badge = document.getElementById('bellBadge');
-    badge.textContent = data.unread_count > 9 ? '9+' : data.unread_count;
-    badge.classList.toggle('hidden', data.unread_count === 0);
+    if (badge) {
+      badge.textContent = unreadCount > 9 ? '9+' : unreadCount;
+      badge.classList.toggle('hidden', unreadCount <= 0);
+    }
   } catch (e) { /* silent */ }
 }
 pollUnreadCount();
