@@ -70,3 +70,37 @@ def _clean_user(cursor, uid):
     for tbl in ['goal_contributions', 'savings_goals', 'settlements', 'recurring_expenses',
                 'expenses', 'income', 'notifications', 'notification_preferences', 'budgets', 'accounts']:
         cursor.execute(f"DELETE FROM {tbl} WHERE user_id=%s", (uid,))
+
+@pytest.fixture
+def dual_users(app, client):
+    """Sets up two clean, isolated users (User A & User B) with known IDs, credentials, and main accounts."""
+    email_a = "user_a_dual@example.com"
+    email_b = "user_b_dual@example.com"
+    pw = "Password123!"
+
+    with get_db() as (conn, cursor):
+        cursor.execute("SELECT user_id FROM users WHERE username IN ('user_a', 'user_b') OR email IN (%s, %s)", (email_a, email_b))
+        rows = cursor.fetchall()
+        for (uid,) in rows:
+            for tbl in ['password_resets', 'goal_contributions', 'savings_goals', 'settlements',
+                        'recurring_expenses', 'recurring_income', 'expenses', 'income', 'budgets',
+                        'notifications', 'notification_preferences', 'accounts', 'users']:
+                cursor.execute(f"DELETE FROM {tbl} WHERE user_id=%s", (uid,))
+
+        pw_hash = generate_password_hash(pw)
+        cursor.execute("INSERT INTO users (username, email, password, display_name) VALUES ('user_a', %s, %s, 'User A')", (email_a, pw_hash))
+        id_a = cursor.lastrowid
+        cursor.execute("INSERT INTO accounts (user_id, name, account_type, balance) VALUES (%s, 'Checking A', 'checking', 10000.00)", (id_a,))
+        acc_a = cursor.lastrowid
+
+        cursor.execute("INSERT INTO users (username, email, password, display_name) VALUES ('user_b', %s, %s, 'User B')", (email_b, pw_hash))
+        id_b = cursor.lastrowid
+        cursor.execute("INSERT INTO accounts (user_id, name, account_type, balance) VALUES (%s, 'Checking B', 'checking', 5000.00)", (id_b,))
+        acc_b = cursor.lastrowid
+
+    return {
+        'id_a': id_a, 'email_a': email_a, 'acc_a': acc_a,
+        'id_b': id_b, 'email_b': email_b, 'acc_b': acc_b,
+        'pw': pw
+    }
+

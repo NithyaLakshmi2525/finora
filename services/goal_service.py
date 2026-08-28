@@ -4,7 +4,13 @@ def compute_goal_display(target_amount, current_amount, target_date, closed_at):
     """Computes target percentages and display status for savings goals."""
     target = float(target_amount or 0)
     current = float(current_amount or 0)
-    pct = min(100.0, (current / target * 100.0)) if target > 0 else 0.0
+    raw_pct = (current / target * 100.0) if target > 0 else 0.0
+    pct_clamped = min(100.0, max(0.0, raw_pct))
+    pct_rounded = round(raw_pct, 1)
+    if pct_rounded == int(pct_rounded):
+        percent_str = str(int(pct_rounded))
+    else:
+        percent_str = f"{pct_rounded:.1f}"
 
     t_date = None
     if isinstance(target_date, date):
@@ -19,7 +25,7 @@ def compute_goal_display(target_amount, current_amount, target_date, closed_at):
         status_key = 'closed'
         status_label = 'Closed'
     elif target > 0 and current >= target:
-        status_key = 'reached'
+        status_key = 'target_reached'
         status_label = 'Target Reached'
     elif t_date and t_date < date.today():
         status_key = 'overdue'
@@ -35,8 +41,10 @@ def compute_goal_display(target_amount, current_amount, target_date, closed_at):
         monthly_needed = remaining / months_left
 
     return {
-        'pct': pct,
-        'pct_rounded': round(pct, 1),
+        'pct': pct_clamped,
+        'pct_raw': raw_pct,
+        'pct_rounded': pct_rounded,
+        'percent': percent_str,
         'remaining': remaining,
         'monthly_needed': monthly_needed,
         'status_key': status_key,
@@ -45,13 +53,14 @@ def compute_goal_display(target_amount, current_amount, target_date, closed_at):
     }
 
 def motivation_for_percent(pct):
-    if pct >= 100:
+    pct_val = float(pct or 0)
+    if pct_val >= 100:
         return "Target reached! Excellent job hitting your savings goal."
-    if pct >= 75:
+    if pct_val >= 75:
         return "Final stretch! You're almost at the finish line."
-    if pct >= 50:
+    if pct_val >= 50:
         return "Halfway there! Keep up the consistent progress."
-    if pct >= 25:
+    if pct_val >= 25:
         return "Great momentum! Off to a solid start."
     return "Every step counts. Keep contributing to hit your goal!"
 
@@ -99,10 +108,10 @@ def get_dashboard_goals(cursor, user_id, limit=3):
             'current_amount': float(current_amt or 0),
             'remaining': disp['remaining'],
             'percentage': disp['pct_rounded'],
+            'percent': disp['percent'],
             'status_label': disp['status_label'],
             'status_key': disp['status_key'],
             'icon': icon or '🎯',
             'color': color or '#4edea3',
         })
     return goals
-

@@ -175,7 +175,7 @@
             </svg>
             <div class="absolute inset-0 flex flex-col items-center justify-center">
               <span class="text-3xl">{{ goal.icon }}</span>
-              <span id="percentText" class="text-lg font-extrabold mt-1">{{ goal.percent }}%</span>
+              <span id="percentText" class="text-lg font-extrabold mt-1">{{ goal.percent if goal.percent is defined and goal.percent is not none else (goal.pct_rounded if goal.pct_rounded is defined else 0) }}%</span>
             </div>
           </div>
 
@@ -220,7 +220,7 @@
               </div>
               <div class="stat-tile" id="tileProgress">
                 <p class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-wider mb-1">Progress</p>
-                <p id="statProgress" class="text-base font-extrabold">{{ goal.percent }}%</p>
+                <p id="statProgress" class="text-base font-extrabold">{{ goal.percent if goal.percent is defined and goal.percent is not none else (goal.pct_rounded if goal.pct_rounded is defined else 0) }}%</p>
               </div>
             </div>
 
