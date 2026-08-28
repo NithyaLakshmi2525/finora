@@ -305,3 +305,35 @@ def test_delete_account_safety_and_user_isolation(client, test_user):
 
     client.get('/logout')
 
+
+def test_legacy_google_auth_password_migration(app):
+    """Verifies that ensure_schema() migrates legacy google_auth passwords without NameError."""
+    from app import ensure_schema
+    legacy_email = "legacy_google_user@example.com"
+    legacy_pw_hash = generate_password_hash("google_auth")
+
+    with get_db() as (conn, cursor):
+        cursor.execute("SELECT user_id FROM users WHERE email=%s", (legacy_email,))
+        row = cursor.fetchone()
+        if row:
+            u_id = row[0]
+            for tbl in ['password_resets', 'goal_contributions', 'savings_goals', 'settlements', 'recurring_expenses', 'recurring_income', 'expenses', 'income', 'budgets', 'notifications', 'notification_preferences', 'accounts', 'users']:
+                cursor.execute(f"DELETE FROM {tbl} WHERE user_id=%s", (u_id,))
+
+        cursor.execute(
+            "INSERT INTO users (username, email, password, auth_provider) VALUES (%s, %s, %s, 'google')",
+            (legacy_email, legacy_email, legacy_pw_hash)
+        )
+        legacy_uid = cursor.lastrowid
+
+    # Execute ensure_schema() — must not raise NameError and must migrate the legacy password
+    ensure_schema()
+
+    with get_db() as (conn, cursor):
+        cursor.execute("SELECT password FROM users WHERE user_id=%s", (legacy_uid,))
+        new_pw_hash = cursor.fetchone()[0]
+        # Verify the password hash was successfully updated and is no longer matching 'google_auth'
+        assert new_pw_hash != legacy_pw_hash
+        assert check_password_hash(new_pw_hash, 'google_auth') is False
+
+
