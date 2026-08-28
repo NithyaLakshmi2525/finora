@@ -1,11 +1,11 @@
 from db import get_db
 
 ACCOUNT_TYPES = [
-    ('checking', 'Checking Account', '🏦'),
-    ('savings', 'Savings Account', '💰'),
-    ('credit_card', 'Credit Card', '💳'),
-    ('cash', 'Cash', '💵'),
-    ('wallet', 'Digital Wallet', '📱')
+    ('checking', 'Checking Account', '🏦', 'Everyday bank account'),
+    ('savings', 'Savings Account', '💰', 'Money set aside for saving'),
+    ('credit_card', 'Credit Card', '💳', 'Card balance / money you owe'),
+    ('cash', 'Cash', '💵', 'Physical cash you currently hold'),
+    ('wallet', 'Digital Wallet', '📱', 'UPI or digital wallet balance')
 ]
 
 def get_user_accounts(cursor, user_id):
@@ -83,6 +83,21 @@ def archive_account(cursor, user_id, account_id):
         (account_id, user_id)
     )
 
+def check_account_linked_transactions(cursor, user_id, account_id):
+    cursor.execute("SELECT COUNT(*) FROM expenses WHERE user_id=%s AND account_id=%s", (user_id, account_id))
+    exp_count = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM income WHERE user_id=%s AND account_id=%s", (user_id, account_id))
+    inc_count = cursor.fetchone()[0]
+    return exp_count + inc_count
+
+def delete_account(cursor, user_id, account_id):
+    linked_count = check_account_linked_transactions(cursor, user_id, account_id)
+    if linked_count > 0:
+        return False, f"This account has {linked_count} linked transaction{'s' if linked_count != 1 else ''} and cannot be deleted safely. Archive it instead."
+    
+    cursor.execute("DELETE FROM accounts WHERE account_id=%s AND user_id=%s", (account_id, user_id))
+    return True, "Account deleted successfully."
+
 def update_account_balance(cursor, account_id, delta):
     if not account_id or delta == 0:
         return
@@ -119,7 +134,8 @@ def get_accounts_summary(cursor, user_id):
     accounts = get_user_accounts(cursor, user_id)
     net_worth = sum(a['balance'] for a in accounts)
     type_totals = {}
-    for t_key, t_label, t_icon in ACCOUNT_TYPES:
+    for t_item in ACCOUNT_TYPES:
+        t_key = t_item[0]
         type_totals[t_key] = sum(a['balance'] for a in accounts if a['account_type'] == t_key)
 
     return {

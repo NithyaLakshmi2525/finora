@@ -471,21 +471,21 @@ def test_filtered_csv_export_ui_indication(client, dual_users):
     # 1. Unfiltered state
     res = client.get('/expenses')
     assert res.status_code == 200
-    assert b'Export CSV downloads all' in res.data
-    assert b'no active filters applied' in res.data
+    assert b'Exports all transactions.' in res.data
     assert b'Export CSV' in res.data
 
     # 2. Filtered state (Category = Food)
     res = client.get('/expenses?category=Food')
     assert res.status_code == 200
-    assert b'Export CSV uses active filters' in res.data
+    assert b'Filtered CSV Export:' in res.data
+    assert b'Exports only the transactions matching the filters above.' in res.data
     assert b'Export Filtered CSV' in res.data
-    assert b'currently filtered transaction' in res.data
 
     # 3. Filtered state (Search = Electricity)
     res = client.get('/expenses?search=Electricity')
     assert res.status_code == 200
-    assert b'Export CSV uses active filters' in res.data
+    assert b'Filtered CSV Export:' in res.data
+    assert b'Exports only the transactions matching the filters above.' in res.data
     assert b'Export Filtered CSV' in res.data
 
     client.get('/logout')

@@ -32,6 +32,7 @@ if (localStorage.getItem('theme') === 'light') document.documentElement.classLis
           "outline-variant":        "#3c4a42",
           "outline":                "#86948a",
           "error":                  "#ffb4ab",
+          "on-error":               "#690005",
           "secondary":              "#a3d4ff",
           "surface-container-high": "#262b32",
         },
@@ -47,19 +48,31 @@ if (localStorage.getItem('theme') === 'light') document.documentElement.classLis
   html { color-scheme: dark; }
   body { font-family:'Geist',sans-serif; background:#10141a; color:#dfe2eb; -webkit-font-smoothing:antialiased; }
   .material-symbols-outlined { font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; }
-  .inp {
+  .inp, select.inp {
     background:#10141a !important;
     border:1px solid #3c4a42;
     border-radius:10px;
-    padding:10px 14px;
+    padding:9px 14px;
     color:#dfe2eb !important;
     font-size:14px;
+    line-height:1.4;
+    min-height:42px;
+    box-sizing:border-box;
     transition:border-color .15s;
     width:100%;
     color-scheme:dark;
   }
   .inp:focus { outline:none; border-color:#4edea3; box-shadow:0 0 0 3px rgba(78,222,163,.12); }
   .inp::placeholder { color:#86948a; }
+  select.inp {
+    -webkit-appearance:none;
+    appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2386948a' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;
+    background-position:right 14px center;
+    padding-right:38px;
+    cursor:pointer;
+  }
   select.inp option { background:#1c2026; color:#dfe2eb; }
 </style>
 </head>
@@ -106,7 +119,7 @@ if (localStorage.getItem('theme') === 'light') document.documentElement.classLis
           <p class="text-[26px] font-extrabold leading-none {% if net_worth >= 0 %}text-primary{% else %}text-error{% endif %}">
             ₹{{ "{:,.2f}".format(net_worth) }}
           </p>
-          <p class="text-xs text-on-surface-variant mt-2">Combined balance across active accounts</p>
+          <p class="text-xs text-on-surface-variant mt-2">Assets minus credit liabilities</p>
         </div>
 
         <div class="bg-surface-container border border-outline-variant rounded-2xl p-5">
@@ -159,7 +172,13 @@ if (localStorage.getItem('theme') === 'light') document.documentElement.classLis
               </div>
 
               <div class="mb-4">
-                <span class="text-xs text-on-surface-variant block mb-1">Current Balance</span>
+                <span class="text-xs text-on-surface-variant block mb-1">
+                  {% if acc.account_type == 'credit_card' and acc.balance < 0 %}
+                    Money Owed (Liability)
+                  {% else %}
+                    Current Balance
+                  {% endif %}
+                </span>
                 <p class="text-2xl font-extrabold leading-tight {% if acc.balance >= 0 %}text-primary{% else %}text-error{% endif %}">
                   ₹{{ "{:,.2f}".format(acc.balance) }}
                 </p>
@@ -174,16 +193,20 @@ if (localStorage.getItem('theme') === 'light') document.documentElement.classLis
                   Active Account
                 {% endif %}
               </span>
-              <div class="flex items-center gap-2">
+              <div class="flex items-center gap-1.5">
                 <button onclick="openEditAccountModal('{{ acc.account_id }}', '{{ acc.name | escape }}', '{{ acc.account_type }}', '{{ acc.currency }}')"
                         class="text-on-surface-variant hover:text-primary transition-colors p-1" title="Edit Account">
                   <span class="material-symbols-outlined" style="font-size:18px;">edit</span>
                 </button>
                 <a href="/toggle-account/{{ acc.account_id }}"
                    onclick="return confirm('Archive account {{ acc.name }}?')"
-                   class="text-on-surface-variant hover:text-error transition-colors p-1" title="Archive Account">
+                   class="text-on-surface-variant hover:text-amber-400 transition-colors p-1" title="Archive Account">
                   <span class="material-symbols-outlined" style="font-size:18px;">archive</span>
                 </a>
+                <button onclick="openDeleteAccountModal('{{ acc.account_id }}', '{{ acc.name | escape }}')"
+                        class="text-on-surface-variant hover:text-error transition-colors p-1" title="Delete Account">
+                  <span class="material-symbols-outlined" style="font-size:18px;">delete</span>
+                </button>
               </div>
             </div>
           </div>
@@ -222,11 +245,14 @@ if (localStorage.getItem('theme') === 'light') document.documentElement.classLis
 
       <div>
         <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Account Type</label>
-        <select name="account_type" class="inp capitalize">
-          {% for t_key, t_label, t_icon in account_types %}
-            <option value="{{ t_key }}">{{ t_icon }} {{ t_label }}</option>
+        <select name="account_type" id="addAccType" onchange="updateTypeDesc('addAccType', 'addAccTypeDesc')" class="inp capitalize">
+          {% for t_tuple in account_types %}
+            <option value="{{ t_tuple[0] }}">{{ t_tuple[2] }} {{ t_tuple[1] }}</option>
           {% endfor %}
         </select>
+        <p class="text-[11px] text-on-surface-variant/80 mt-1.5 font-medium" id="addAccTypeDesc">
+          🏦 Everyday bank account for income &amp; regular expenses
+        </p>
       </div>
 
       <div>
@@ -277,11 +303,14 @@ if (localStorage.getItem('theme') === 'light') document.documentElement.classLis
 
       <div>
         <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Account Type</label>
-        <select name="account_type" id="editAccType" class="inp capitalize">
-          {% for t_key, t_label, t_icon in account_types %}
-            <option value="{{ t_key }}">{{ t_icon }} {{ t_label }}</option>
+        <select name="account_type" id="editAccType" onchange="updateTypeDesc('editAccType', 'editAccTypeDesc')" class="inp capitalize">
+          {% for t_tuple in account_types %}
+            <option value="{{ t_tuple[0] }}">{{ t_tuple[2] }} {{ t_tuple[1] }}</option>
           {% endfor %}
         </select>
+        <p class="text-[11px] text-on-surface-variant/80 mt-1.5 font-medium" id="editAccTypeDesc">
+          🏦 Everyday bank account
+        </p>
       </div>
 
       <div>
@@ -307,13 +336,78 @@ if (localStorage.getItem('theme') === 'light') document.documentElement.classLis
   </div>
 </div>
 
+<!-- Delete Account Modal -->
+<div id="deleteAccountModal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+  <div class="bg-surface-container border border-outline-variant rounded-2xl p-6 max-w-md w-full shadow-2xl">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-base font-extrabold text-error flex items-center gap-2">
+        <span class="material-symbols-outlined" style="font-size:20px;">warning</span>
+        Delete Account
+      </h3>
+      <button onclick="document.getElementById('deleteAccountModal').classList.add('hidden')" class="text-on-surface-variant hover:text-on-surface">
+        <span class="material-symbols-outlined" style="font-size:20px;">close</span>
+      </button>
+    </div>
+
+    <p class="text-xs text-on-surface-variant mb-4 leading-relaxed">
+      Permanently deleting <strong id="deleteAccName" class="text-on-surface"></strong> cannot be undone. Accounts with linked transactions cannot be deleted and must be archived instead.
+    </p>
+
+    <form id="deleteAccountForm" method="POST" class="space-y-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+      <div>
+        <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">
+          Type <span class="text-error font-mono font-extrabold">DELETE</span> to confirm
+        </label>
+        <input type="text" name="confirm_text" required placeholder="DELETE" class="inp">
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Password (required for local accounts)</label>
+        <input type="password" name="password" placeholder="Account password" class="inp">
+      </div>
+
+      <div class="flex items-center justify-end gap-3 pt-4 border-t border-outline-variant">
+        <button type="button" onclick="document.getElementById('deleteAccountModal').classList.add('hidden')"
+                class="px-4 py-2.5 rounded-xl text-xs font-bold border border-outline-variant text-on-surface-variant hover:bg-surface-container-high">
+          Cancel
+        </button>
+        <button type="submit" class="px-5 py-2.5 rounded-xl text-xs font-bold bg-error text-on-error hover:brightness-110">
+          Permanently Delete
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script>
+const typeDescs = {
+  'checking': '🏦 Checking: Everyday bank account',
+  'savings': '💰 Savings: Money set aside for saving',
+  'credit_card': '💳 Credit Card: Card balance / money you owe',
+  'cash': '💵 Cash: Physical cash you currently hold',
+  'wallet': '📱 Digital Wallet: UPI or digital wallet balance'
+};
+
+function updateTypeDesc(selectId, descId) {
+  const val = document.getElementById(selectId).value;
+  document.getElementById(descId).textContent = typeDescs[val] || '';
+}
+
 function openEditAccountModal(id, name, type, currency) {
   document.getElementById('editAccountForm').action = '/edit-account/' + id;
   document.getElementById('editAccName').value = name;
   document.getElementById('editAccType').value = type;
   document.getElementById('editAccCurrency').value = currency;
+  updateTypeDesc('editAccType', 'editAccTypeDesc');
   document.getElementById('editAccountModal').classList.remove('hidden');
+}
+
+function openDeleteAccountModal(id, name) {
+  document.getElementById('deleteAccountForm').action = '/delete-account/' + id;
+  document.getElementById('deleteAccName').textContent = name;
+  document.getElementById('deleteAccountModal').classList.remove('hidden');
 }
 </script>
 

@@ -318,9 +318,9 @@
           <span class="flex items-center gap-1.5" id="csvExportFilterNotice">
             <span class="material-symbols-outlined text-primary" style="font-size:15px;">info</span>
             {% if has_active_filters %}
-              <span><strong class="text-primary font-semibold">Export CSV uses active filters:</strong> Exporting will download only the <strong>{{ expense_count }}</strong> currently filtered transaction{{ 's' if expense_count != 1 else '' }}.</span>
+              <span><strong class="text-primary font-semibold">Filtered CSV Export:</strong> Exports only the transactions matching the filters above.</span>
             {% else %}
-              <span>Export CSV downloads all <strong>{{ total_items }}</strong> transactions (no active filters applied).</span>
+              <span>Exports all transactions.</span>
             {% endif %}
           </span>
         </div>

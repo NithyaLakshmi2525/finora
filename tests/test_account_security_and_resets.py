@@ -213,3 +213,95 @@ def test_forgot_password_and_token_reset_flow(client, app):
     res = client.post('/login', data={'email': reg_email, 'password': 'NewPassword123!'}, follow_redirects=True)
     assert res.status_code == 200
     assert b"Welcome back!" in res.data
+
+
+def test_login_and_oauth_redirects_to_dashboard(client, app):
+    """Verifies login, registration, and OAuth callback redirect to Dashboard (/), and open redirects are rejected."""
+    client.get('/logout')
+    reg_email = "redirect_test@example.com"
+    pw = "Password123!"
+
+    with get_db() as (conn, cursor):
+        cursor.execute("SELECT user_id FROM users WHERE email=%s", (reg_email,))
+        row = cursor.fetchone()
+        if row:
+            u_id = row[0]
+            for tbl in ['password_resets', 'goal_contributions', 'savings_goals', 'settlements', 'recurring_expenses', 'recurring_income', 'expenses', 'income', 'budgets', 'notifications', 'notification_preferences', 'accounts', 'users']:
+                cursor.execute(f"DELETE FROM {tbl} WHERE user_id=%s", (u_id,))
+
+    # 1. Registration redirects to Dashboard (/)
+    res = client.post('/register', data={
+        'username': 'redirect_test',
+        'email': reg_email,
+        'password': pw,
+        'confirm_password': pw
+    }, follow_redirects=False)
+    assert res.status_code in (302, 303)
+    assert res.headers['Location'] == '/'
+
+    client.get('/logout')
+
+    # 2. Login redirects to Dashboard (/)
+    res = client.post('/login', data={'email': reg_email, 'password': pw}, follow_redirects=False)
+    assert res.status_code in (302, 303)
+    assert res.headers['Location'] == '/'
+
+    client.get('/logout')
+
+    # 3. Malicious next URL is rejected and falls back to Dashboard (/)
+    res = client.post('/login?next=https://evil-external-site.com', data={'email': reg_email, 'password': pw}, follow_redirects=False)
+    assert res.status_code in (302, 303)
+    assert res.headers['Location'] == '/'
+
+
+def test_delete_account_safety_and_user_isolation(client, test_user):
+    """Verifies account deletion safety: unused accounts can be deleted, accounts with linked transactions are blocked."""
+    client.get('/logout')
+    user_id = test_user['user_id']
+    main_acc_id = test_user['account_id']
+    pw = 'Password@123'
+
+    # Create two new accounts for user
+    with get_db() as (conn, cursor):
+        cursor.execute("INSERT INTO accounts (user_id, name, account_type, balance) VALUES (%s, 'Unused Cash', 'cash', 0.00)", (user_id,))
+        unused_acc_id = cursor.lastrowid
+        cursor.execute("INSERT INTO accounts (user_id, name, account_type, balance) VALUES (%s, 'Used Wallet', 'wallet', 500.00)", (user_id,))
+        used_acc_id = cursor.lastrowid
+
+        # Seed linked expense transaction for used_acc_id
+        cursor.execute(
+            "INSERT INTO expenses (user_id, amount, category, description, expense_date, account_id) VALUES (%s, 50.00, 'Food', 'Snack', '2026-08-25', %s)",
+            (user_id, used_acc_id)
+        )
+
+    # Login
+    client.post('/login', data={'email': test_user['email'], 'password': pw}, follow_redirects=True)
+
+    # 1. Attempt delete without DELETE confirm_text -> fails
+    res = client.post(f'/delete-account/{unused_acc_id}', data={'confirm_text': 'NO', 'password': pw}, follow_redirects=True)
+    assert b"must type DELETE to confirm" in res.data
+
+    # 2. Attempt delete with wrong password -> fails
+    res = client.post(f'/delete-account/{unused_acc_id}', data={'confirm_text': 'DELETE', 'password': 'WrongPassword'}, follow_redirects=True)
+    assert b"Incorrect password" in res.data
+
+    # 3. Attempt delete account with linked transactions -> BLOCKED with warning message!
+    res = client.post(f'/delete-account/{used_acc_id}', data={'confirm_text': 'DELETE', 'password': pw}, follow_redirects=True)
+    assert b"linked transaction" in res.data
+    assert b"cannot be deleted safely. Archive it instead" in res.data
+
+    # Verify used account is NOT deleted
+    with get_db() as (conn, cursor):
+        cursor.execute("SELECT COUNT(*) FROM accounts WHERE account_id=%s", (used_acc_id,))
+        assert cursor.fetchone()[0] == 1
+
+    # 4. Successful deletion of unused account
+    res = client.post(f'/delete-account/{unused_acc_id}', data={'confirm_text': 'DELETE', 'password': pw}, follow_redirects=True)
+    assert b"Account deleted successfully" in res.data
+
+    with get_db() as (conn, cursor):
+        cursor.execute("SELECT COUNT(*) FROM accounts WHERE account_id=%s", (unused_acc_id,))
+        assert cursor.fetchone()[0] == 0
+
+    client.get('/logout')
+

@@ -166,6 +166,11 @@ def home():
         active_page='dashboard'
     )
 
+def is_safe_url(target):
+    if not target:
+        return False
+    return target.startswith('/') and not target.startswith('//') and not target.startswith('\\')
+
 @auth_bp.route('/register', methods=['GET', 'POST'])
 def register():
     if 'user_id' in session:
@@ -191,9 +196,18 @@ def register():
                 "INSERT INTO users (username, password, email) VALUES (%s, %s, %s)",
                 (username, hashed_password, email)
             )
+            user_id = cursor.lastrowid
+            cursor.execute("INSERT IGNORE INTO notification_preferences (user_id) VALUES (%s)", (user_id,))
+            cursor.execute(
+                "INSERT INTO accounts (user_id, name, account_type, balance, currency) VALUES (%s, 'Main Account', 'checking', 0.00, 'INR')",
+                (user_id,)
+            )
 
-        flash("Registration successful! Please log in.", "success")
-        return redirect('/login')
+        session['user_id'] = user_id
+        session['username'] = username
+        session['display_name'] = username
+        flash("Registration successful! Welcome to Finora.", "success")
+        return redirect('/')
 
     return render_template('auth/register.html')
 
@@ -214,6 +228,9 @@ def login():
             session['username'] = user[1]
             session['display_name'] = user[3] or user[1]
             flash("Welcome back!", "success")
+            next_url = request.args.get('next') or request.form.get('next')
+            if is_safe_url(next_url):
+                return redirect(next_url)
             return redirect('/')
         else:
             flash("Invalid email or password. Please try again.", "error")
@@ -569,7 +586,7 @@ def authorize_google():
         session['username'] = username
         session['display_name'] = display_name
         flash("Logged in with Google successfully!", "success")
-        return redirect('/expenses')
+        return redirect('/')
 
     except Exception as e:
         flash(f"Google authorization failed: {str(e)}", "error")
