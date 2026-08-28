@@ -215,6 +215,120 @@ def test_forgot_password_and_token_reset_flow(client, app):
     assert b"Welcome back!" in res.data
 
 
+def test_send_email_service_and_mocked_smtp_delivery(monkeypatch):
+    """Verifies send_password_reset_email constructs MIME message, connects to SMTP/TLS, and sends recipient reset URL."""
+    from services.email_service import send_email, send_password_reset_email
+    from config import Config
+
+    sent_messages = []
+
+    class DummySMTP:
+        def __init__(self, host, port, timeout=10):
+            self.host = host
+            self.port = port
+            self.timeout = timeout
+            self.tls_started = False
+            self.logged_in = False
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+        def starttls(self):
+            self.tls_started = True
+
+        def login(self, username, password):
+            self.logged_in = True
+
+        def sendmail(self, from_addr, to_addrs, msg_string):
+            sent_messages.append({
+                'from': from_addr,
+                'to': to_addrs,
+                'msg': msg_string
+            })
+
+    monkeypatch.setattr("smtplib.SMTP", DummySMTP)
+    monkeypatch.setattr(Config, "MAIL_SERVER", "smtp.example.com")
+    monkeypatch.setattr(Config, "MAIL_PORT", 587)
+    monkeypatch.setattr(Config, "MAIL_USERNAME", "support@example.com")
+    monkeypatch.setattr(Config, "MAIL_PASSWORD", "secret123")
+    monkeypatch.setattr(Config, "MAIL_USE_TLS", True)
+    monkeypatch.setattr(Config, "MAIL_USE_SSL", False)
+    monkeypatch.setattr(Config, "MAIL_FROM", "Finora Support <support@example.com>")
+
+    reset_url = "http://127.0.0.1:5000/reset-password/mock_token_123"
+    success = send_password_reset_email("recipient@example.com", reset_url)
+
+    assert success is True
+    assert len(sent_messages) == 1
+    msg_data = sent_messages[0]
+    assert msg_data['to'] == ["recipient@example.com"]
+    assert "Reset Your Password - Finora" in msg_data['msg']
+
+
+def test_email_service_unconfigured_or_smtp_exception_handling(monkeypatch):
+    """Verifies email service handles missing config and SMTP exceptions gracefully without crashing."""
+    from services.email_service import send_email
+    from config import Config
+    import smtplib
+
+    # 1. Unconfigured credentials -> returns False safely
+    monkeypatch.setattr(Config, "MAIL_SERVER", "")
+    monkeypatch.setattr(Config, "MAIL_USERNAME", "")
+    monkeypatch.setattr(Config, "MAIL_PASSWORD", "")
+    assert send_email("user@example.com", "Subject", "<h1>HTML</h1>") is False
+
+    # 2. SMTP exception during connection -> returns False safely
+    monkeypatch.setattr(Config, "MAIL_SERVER", "smtp.example.com")
+    monkeypatch.setattr(Config, "MAIL_USERNAME", "user@example.com")
+    monkeypatch.setattr(Config, "MAIL_PASSWORD", "password")
+
+    class FailingSMTP:
+        def __init__(self, *args, **kwargs):
+            raise smtplib.SMTPConnectError(421, "Connection refused")
+
+    monkeypatch.setattr("smtplib.SMTP", FailingSMTP)
+    assert send_email("user@example.com", "Subject", "<h1>HTML</h1>") is False
+
+
+def test_forgot_password_sends_email_and_remains_enumeration_safe(client, monkeypatch):
+    """Verifies forgot-password route triggers send_password_reset_email for registered user, omits for non-existent, and maintains enumeration safety."""
+    calls = []
+
+    def mock_send(to_email, reset_url):
+        calls.append((to_email, reset_url))
+        return True
+
+    monkeypatch.setattr("blueprints.auth.send_password_reset_email", mock_send)
+
+    # Logout to ensure unauthenticated session
+    client.get('/logout')
+
+    # 1. Non-existent email -> enumeration safe message, no email sent
+    res = client.post('/forgot-password', data={'email': 'unknown_person_999@example.com'}, follow_redirects=True)
+    assert res.status_code == 200
+    assert b"If an account exists for that email, you will receive password reset instructions." in res.data
+    assert len(calls) == 0
+
+    # 2. Registered email -> enumeration safe message, email sent with reset link
+    reg_email = "registered_target@example.com"
+    with get_db() as (conn, cursor):
+        cursor.execute("DELETE FROM users WHERE email=%s OR username='reg_target_user'", (reg_email,))
+        pw_hash = generate_password_hash("Pass12345!")
+        cursor.execute("INSERT INTO users (username, email, password) VALUES ('reg_target_user', %s, %s)", (reg_email, pw_hash))
+
+    res = client.post('/forgot-password', data={'email': reg_email}, follow_redirects=True)
+    assert res.status_code == 200
+    assert b"If an account exists for that email, you will receive password reset instructions." in res.data
+    assert len(calls) == 1
+    assert calls[0][0] == reg_email
+    assert "/reset-password/" in calls[0][1]
+
+
+
+
 def test_login_and_oauth_redirects_to_dashboard(client, app):
     """Verifies login, registration, and OAuth callback redirect to Dashboard (/), and open redirects are rejected."""
     client.get('/logout')

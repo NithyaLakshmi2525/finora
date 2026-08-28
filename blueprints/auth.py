@@ -11,6 +11,8 @@ from services.notification_service import check_opportunistic_notifications, get
 from services.recurring_service import process_due_auto_charges
 from services.account_service import reset_user_financial_data
 from services.budget_service import get_user_budgets
+from services.email_service import send_password_reset_email
+from config import Config
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -429,8 +431,12 @@ def forgot_password():
                             "INSERT INTO password_resets (user_id, token_hash, expires_at) VALUES (%s, %s, %s)",
                             (user_id, token_hash, expires_at)
                         )
-                        reset_url = url_for('auth.reset_password', token=raw_token, _external=True)
-                        print(f"[Password Reset Log] Email: {email} | Reset Link: {reset_url}")
+                        base_url = Config.APP_BASE_URL or request.host_url.rstrip('/')
+                        reset_url = f"{base_url}/reset-password/{raw_token}"
+                        
+                        email_sent = send_password_reset_email(email, reset_url)
+                        if not email_sent:
+                            print(f"[Password Reset Notice] Email dispatch skipped or failed for {email}. (Configure MAIL_USERNAME and MAIL_PASSWORD in .env for live delivery)")
 
         flash("If an account exists for that email, you will receive password reset instructions.", "info")
         return redirect('/forgot-password')
