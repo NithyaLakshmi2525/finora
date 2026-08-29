@@ -268,8 +268,11 @@ def import_csv_preview():
         flash(result['error'], "error")
         return redirect('/expenses')
 
+    total_count = len(result['rows'])
     valid_count = sum(1 for r in result['rows'] if r['is_valid'])
-    dup_count = sum(1 for r in result['rows'] if r['is_duplicate'])
+    invalid_count = sum(1 for r in result['rows'] if not r['is_valid'])
+    dup_count = sum(1 for r in result['rows'] if r['is_valid'] and r['is_duplicate'])
+    ready_count = sum(1 for r in result['rows'] if r['is_valid'] and not r['is_duplicate'])
 
     return render_template(
         'expenses/csv_preview.html',
@@ -277,8 +280,11 @@ def import_csv_preview():
         display_name=session.get('display_name', session['username']),
         rows=result['rows'],
         rows_json=json.dumps(result['rows']),
+        total_count=total_count,
         valid_count=valid_count,
+        invalid_count=invalid_count,
         dup_count=dup_count,
+        ready_count=ready_count,
         user_accounts=user_accounts,
         active_page='expenses'
     )
