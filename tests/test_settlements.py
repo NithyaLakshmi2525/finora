@@ -24,13 +24,13 @@ def test_peer_settlements_and_ledger_integration(auth_client, test_user):
         assert exp_id is not None
 
     # Settle balance
-    res = auth_client.get(f'/settle/{s_id}', follow_redirects=True)
+    res = auth_client.post(f'/settle/{s_id}', follow_redirects=True)
     assert res.status_code == 200
 
     # Reopen settlement
-    res = auth_client.get(f'/api/settlements/{s_id}/reopen', follow_redirects=True)
+    res = auth_client.post(f'/api/settlements/{s_id}/reopen', follow_redirects=True)
     assert res.status_code == 200
 
     # Delete settlement
-    res = auth_client.get(f'/api/settlements/{s_id}/delete', follow_redirects=True)
+    res = auth_client.post(f'/api/settlements/{s_id}/delete', follow_redirects=True)
     assert res.status_code == 200

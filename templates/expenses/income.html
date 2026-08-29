@@ -253,12 +253,18 @@
                   </div>
                 </div>
                 <div class="flex items-center gap-1">
-                  <a href="/toggle-recurring-income/{{ r.id }}" class="p-1 text-on-surface-variant hover:text-on-surface" title="Toggle Status">
-                    <span class="material-symbols-outlined" style="font-size:18px;">{% if r.status == 'active' %}pause_circle{% else %}play_circle{% endif %}</span>
-                  </a>
-                  <a href="/delete-recurring-income/{{ r.id }}" onclick="return confirm('Delete recurring income {{ r.title }}?')" class="p-1 text-on-surface-variant hover:text-error" title="Delete">
-                    <span class="material-symbols-outlined" style="font-size:18px;">delete</span>
-                  </a>
+                  <form action="/toggle-recurring-income/{{ r.id }}" method="POST" class="inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <button type="submit" class="p-1 text-on-surface-variant hover:text-on-surface bg-transparent border-0 cursor-pointer" title="Toggle Status">
+                      <span class="material-symbols-outlined" style="font-size:18px;">{% if r.status == 'active' %}pause_circle{% else %}play_circle{% endif %}</span>
+                    </button>
+                  </form>
+                  <form action="/delete-recurring-income/{{ r.id }}" method="POST" class="inline" onsubmit="return confirm('Delete recurring income {{ r.title }}?')">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <button type="submit" class="p-1 text-on-surface-variant hover:text-error bg-transparent border-0 cursor-pointer" title="Delete">
+                      <span class="material-symbols-outlined" style="font-size:18px;">delete</span>
+                    </button>
+                  </form>
                 </div>
               </div>
             {% endfor %}

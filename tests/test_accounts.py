@@ -37,8 +37,8 @@ def test_accounts_crud_and_atomic_balances(auth_client, test_user):
         cursor.execute("SELECT balance FROM accounts WHERE account_id=%s", (acc_id,))
         assert float(cursor.fetchone()[0]) == 12500.00
 
-    # 4. Archive Account
-    res = auth_client.get(f'/toggle-account/{acc_id}', follow_redirects=True)
+    # 4. Archive / Toggle Account
+    res = auth_client.post(f'/toggle-account/{acc_id}', follow_redirects=True)
     assert res.status_code == 200
 
     with get_db() as (conn, cursor):

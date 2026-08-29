@@ -36,10 +36,10 @@ def test_savings_goals_and_contributions(auth_client, test_user):
         assert float(cursor.fetchone()[0]) == 5000.00
 
     # Close & Delete Goal
-    res = auth_client.get(f'/close-goal/{g_id}', follow_redirects=True)
+    res = auth_client.post(f'/close-goal/{g_id}', follow_redirects=True)
     assert res.status_code == 200
 
-    res = auth_client.get(f'/delete-goal/{g_id}', follow_redirects=True)
+    res = auth_client.post(f'/delete-goal/{g_id}', follow_redirects=True)
     assert res.status_code == 200
 
 

@@ -78,7 +78,7 @@ def recurring():
         active_page='recurring'
     )
 
-@recurring_bp.route('/delete-recurring/<int:id>')
+@recurring_bp.route('/delete-recurring/<int:id>', methods=['POST'])
 def delete_recurring(id):
     if 'user_id' not in session:
         return redirect('/login')
@@ -87,7 +87,7 @@ def delete_recurring(id):
     flash("Subscription deleted successfully!", "success")
     return redirect('/recurring')
 
-@recurring_bp.route('/confirm-paid/<int:id>')
+@recurring_bp.route('/confirm-paid/<int:id>', methods=['POST'])
 def confirm_paid(id):
     if 'user_id' not in session:
         return redirect('/login')
@@ -121,7 +121,7 @@ def confirm_paid(id):
     flash(f"Paid {title}! ₹{float(amount):,.0f} logged to Expenses.", "success")
     return redirect('/recurring')
 
-@recurring_bp.route('/toggle-recurring/<int:id>')
+@recurring_bp.route('/toggle-recurring/<int:id>', methods=['POST'])
 def toggle_recurring(id):
     if 'user_id' not in session:
         return redirect('/login')

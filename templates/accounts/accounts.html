@@ -198,11 +198,12 @@ if (localStorage.getItem('theme') === 'light') document.documentElement.classLis
                         class="text-on-surface-variant hover:text-primary transition-colors p-1" title="Edit Account">
                   <span class="material-symbols-outlined" style="font-size:18px;">edit</span>
                 </button>
-                <a href="/toggle-account/{{ acc.account_id }}"
-                   onclick="return confirm('Archive account {{ acc.name }}?')"
-                   class="text-on-surface-variant hover:text-amber-400 transition-colors p-1" title="Archive Account">
-                  <span class="material-symbols-outlined" style="font-size:18px;">archive</span>
-                </a>
+                <form action="/toggle-account/{{ acc.account_id }}" method="POST" class="inline" onsubmit="return confirm('Archive account {{ acc.name }}?')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                  <button type="submit" class="text-on-surface-variant hover:text-amber-400 transition-colors p-1 bg-transparent border-0 cursor-pointer" title="Archive Account">
+                    <span class="material-symbols-outlined" style="font-size:18px;">archive</span>
+                  </button>
+                </form>
                 <button onclick="openDeleteAccountModal('{{ acc.account_id }}', '{{ acc.name | escape }}')"
                         class="text-on-surface-variant hover:text-error transition-colors p-1" title="Delete Account">
                   <span class="material-symbols-outlined" style="font-size:18px;">delete</span>

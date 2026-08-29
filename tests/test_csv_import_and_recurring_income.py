@@ -156,9 +156,9 @@ def test_recurring_income_workflow(auth_client, test_user):
         assert cursor.fetchone()[0] > 0
 
     # 3. Toggle status
-    res = auth_client.get(f'/toggle-recurring-income/{rec_inc_id}', follow_redirects=True)
+    res = auth_client.post(f'/toggle-recurring-income/{rec_inc_id}', follow_redirects=True)
     assert res.status_code == 200
 
     # 4. Delete recurring setup
-    res = auth_client.get(f'/delete-recurring-income/{rec_inc_id}', follow_redirects=True)
+    res = auth_client.post(f'/delete-recurring-income/{rec_inc_id}', follow_redirects=True)
     assert res.status_code == 200

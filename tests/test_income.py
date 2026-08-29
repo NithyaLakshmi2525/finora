@@ -28,7 +28,7 @@ def test_income_crud(auth_client, test_user):
     assert res.status_code == 200
 
     # 3. Delete Income
-    res = auth_client.get(f'/delete-income/{inc_id}', follow_redirects=True)
+    res = auth_client.post(f'/delete-income/{inc_id}', follow_redirects=True)
     assert res.status_code == 200
 
     with get_db() as (conn, cursor):

@@ -104,7 +104,7 @@ def settlements_data():
         'items': active_items + history_items
     })
 
-@settlements_bp.route('/settle/<int:settlement_id>')
+@settlements_bp.route('/settle/<int:settlement_id>', methods=['POST'])
 def settle_transaction(settlement_id):
     if 'user_id' not in session:
         return redirect('/login')
@@ -170,7 +170,7 @@ def edit_settlement(settlement_id):
     flash("Settlement updated successfully!", "success")
     return redirect('/settlements')
 
-@settlements_bp.route('/api/settlements/<int:settlement_id>/reopen')
+@settlements_bp.route('/api/settlements/<int:settlement_id>/reopen', methods=['POST'])
 def reopen_settlement(settlement_id):
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
@@ -182,7 +182,7 @@ def reopen_settlement(settlement_id):
     flash("Settlement reopened!", "success")
     return redirect('/settlements')
 
-@settlements_bp.route('/api/settlements/<int:settlement_id>/delete')
+@settlements_bp.route('/api/settlements/<int:settlement_id>/delete', methods=['POST'])
 def delete_settlement(settlement_id):
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401

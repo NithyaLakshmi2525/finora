@@ -34,7 +34,7 @@ def test_expense_crud_and_filtering(auth_client, test_user):
     assert b'Pytest Premium Dinner' in res.data
 
     # 4. Delete Expense
-    res = auth_client.get(f'/delete/{exp_id}', follow_redirects=True)
+    res = auth_client.post(f'/delete/{exp_id}', follow_redirects=True)
     assert res.status_code == 200
 
     with get_db() as (conn, cursor):

@@ -330,7 +330,7 @@ def delete_contribution(goal_id, contribution_id):
         'goal': updated_goal
     })
 
-@goals_bp.route('/close-goal/<int:goal_id>')
+@goals_bp.route('/close-goal/<int:goal_id>', methods=['POST'])
 def close_goal(goal_id):
     if 'user_id' not in session:
         return redirect('/login')
@@ -342,7 +342,7 @@ def close_goal(goal_id):
     flash("Goal marked as closed.", "success")
     return redirect('/goals')
 
-@goals_bp.route('/restore-goal/<int:goal_id>')
+@goals_bp.route('/restore-goal/<int:goal_id>', methods=['POST'])
 def restore_goal(goal_id):
     if 'user_id' not in session:
         return redirect('/login')
@@ -354,7 +354,7 @@ def restore_goal(goal_id):
     flash("Goal reopened!", "success")
     return redirect(f"/goals/{goal_id}")
 
-@goals_bp.route('/delete-goal/<int:goal_id>')
+@goals_bp.route('/delete-goal/<int:goal_id>', methods=['POST'])
 def delete_goal(goal_id):
     if 'user_id' not in session:
         return redirect('/login')

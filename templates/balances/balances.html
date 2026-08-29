@@ -750,7 +750,11 @@ function submitAddBalance(e) {
   clearFieldError('addAmount', 'addAmountError');
   const form = e.target;
   const fd = new FormData(form);
-  fetch('/settlements', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+  fetch('/settlements', {
+    method: 'POST',
+    body: fd,
+    headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': '{{ csrf_token() }}' }
+  })
     .then(r => r.json().then(data => ({ ok: r.ok, data })))
     .then(({ ok, data }) => {
       if (ok && data.success) {
@@ -778,7 +782,10 @@ function handleSettleClick(btn) {
 function closeSettleModal() { document.getElementById('settleModal').classList.remove('open'); pendingSettleId = null; }
 function proceedSettle() {
   if (pendingSettleId === null) return;
-  fetch('/settle/' + pendingSettleId, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+  fetch('/settle/' + pendingSettleId, {
+    method: 'POST',
+    headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': '{{ csrf_token() }}' }
+  })
     .then(r => r.json().then(data => ({ ok: r.ok, data })))
     .then(({ ok, data }) => {
       if (ok && data.success) {
@@ -803,7 +810,10 @@ function handleReopenClick(btn) {
 function closeReopenModal() { document.getElementById('reopenModal').classList.remove('open'); pendingReopenId = null; }
 function proceedReopen() {
   if (pendingReopenId === null) return;
-  fetch('/api/settlements/' + pendingReopenId + '/reopen', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+  fetch('/api/settlements/' + pendingReopenId + '/reopen', {
+    method: 'POST',
+    headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': '{{ csrf_token() }}' }
+  })
     .then(r => r.json().then(data => ({ ok: r.ok, data })))
     .then(({ ok, data }) => {
       if (ok && data.success) {
@@ -928,7 +938,11 @@ function submitEditBalance(e) {
   if (editingStatus === 'settled') {
     fd.append('settled_date', document.getElementById('editSettledDate').value);
   }
-  fetch('/api/settlements/' + editingId + '/edit', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+  fetch('/api/settlements/' + editingId + '/edit', {
+    method: 'POST',
+    body: fd,
+    headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': '{{ csrf_token() }}' }
+  })
     .then(r => r.json().then(data => ({ ok: r.ok, data })))
     .then(({ ok, data }) => {
       if (ok && data.success) {
@@ -962,7 +976,10 @@ function handleDeleteClick(btn) {
 function closeDeleteModal() { document.getElementById('deleteModal').classList.remove('open'); deletingId = null; }
 function proceedDelete() {
   if (deletingId === null) return;
-  fetch('/api/settlements/' + deletingId + '/delete', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+  fetch('/api/settlements/' + deletingId + '/delete', {
+    method: 'POST',
+    headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': '{{ csrf_token() }}' }
+  })
     .then(r => r.json().then(data => ({ ok: r.ok, data })))
     .then(({ ok, data }) => {
       if (ok && data.success) {

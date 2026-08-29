@@ -153,7 +153,7 @@ def expenses():
         active_page='expenses'
     )
 
-@expenses_bp.route('/delete/<int:expense_id>')
+@expenses_bp.route('/delete/<int:expense_id>', methods=['POST'])
 def delete_expense(expense_id):
     if 'user_id' not in session:
         return redirect('/login')
@@ -414,7 +414,7 @@ def edit_income(income_id):
         **context
     )
 
-@expenses_bp.route('/delete-income/<int:income_id>')
+@expenses_bp.route('/delete-income/<int:income_id>', methods=['POST'])
 def delete_income(income_id):
     if 'user_id' not in session:
         return redirect('/login')
@@ -453,7 +453,7 @@ def add_rec_income():
     flash(f"Recurring income '{title}' added successfully!", "success")
     return redirect('/income')
 
-@expenses_bp.route('/toggle-recurring-income/<int:rec_inc_id>')
+@expenses_bp.route('/toggle-recurring-income/<int:rec_inc_id>', methods=['POST'])
 def toggle_rec_income(rec_inc_id):
     if 'user_id' not in session:
         return redirect('/login')
@@ -464,7 +464,7 @@ def toggle_rec_income(rec_inc_id):
     flash("Recurring income status toggled.", "success")
     return redirect('/income')
 
-@expenses_bp.route('/delete-recurring-income/<int:rec_inc_id>')
+@expenses_bp.route('/delete-recurring-income/<int:rec_inc_id>', methods=['POST'])
 def delete_rec_income(rec_inc_id):
     if 'user_id' not in session:
         return redirect('/login')

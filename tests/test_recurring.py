@@ -22,7 +22,7 @@ def test_recurring_expenses_workflow(auth_client, test_user):
         rec_id = cursor.fetchone()[0]
 
     # Confirm Paid -> Auto Expense creation
-    res = auth_client.get(f'/confirm-paid/{rec_id}', follow_redirects=True)
+    res = auth_client.post(f'/confirm-paid/{rec_id}', follow_redirects=True)
     assert res.status_code == 200
 
     with get_db() as (conn, cursor):
@@ -30,5 +30,5 @@ def test_recurring_expenses_workflow(auth_client, test_user):
         assert cursor.fetchone()[0] > 0
 
     # Delete Recurring
-    res = auth_client.get(f'/delete-recurring/{rec_id}', follow_redirects=True)
+    res = auth_client.post(f'/delete-recurring/{rec_id}', follow_redirects=True)
     assert res.status_code == 200

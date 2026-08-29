@@ -68,7 +68,7 @@ def edit_account(account_id):
     flash('Account updated successfully!', 'success')
     return redirect('/accounts')
 
-@accounts_bp.route('/toggle-account/<int:account_id>', methods=['GET', 'POST'])
+@accounts_bp.route('/toggle-account/<int:account_id>', methods=['POST'])
 def toggle_account(account_id):
     if 'user_id' not in session:
         return redirect('/login')

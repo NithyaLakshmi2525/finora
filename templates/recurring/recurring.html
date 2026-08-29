@@ -1118,18 +1118,26 @@ function showToast(msg) {
 /* ── Mark as paid (manual items) without scroll-to-top ── */
 function confirmPaid(id) {
   const savedScroll = window.scrollY;
-  fetch('/confirm-paid/' + id, { method: 'POST', redirect: 'manual' })
+  fetch('/confirm-paid/' + id, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': '{{ csrf_token() }}' },
+    redirect: 'manual'
+  })
     .then(() => {
       sessionStorage.setItem('recurringScroll', savedScroll);
       location.reload();
     })
-    .catch(() => { location.href = '/confirm-paid/' + id; });
+    .catch(() => { showToast('Something went wrong — please try again.'); });
 }
 
 /* ── Toggle recurring (pause/resume) without scroll-to-top ── */
 function toggleRecurring(id, btn) {
   const savedScroll = window.scrollY;
-  fetch('/toggle-recurring/' + id, { method: 'POST', redirect: 'manual' })
+  fetch('/toggle-recurring/' + id, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': '{{ csrf_token() }}' },
+    redirect: 'manual'
+  })
     .then(() => {
       sessionStorage.setItem('recurringScroll', savedScroll);
       location.reload();
