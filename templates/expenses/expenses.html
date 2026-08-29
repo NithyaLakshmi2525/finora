@@ -273,19 +273,23 @@
       <!-- ── Filters ── -->
       <div class="bg-surface-container border border-outline-variant rounded-2xl p-5 mb-6">
         <form method="GET" class="flex flex-wrap gap-3 items-center">
-          <select name="search" class="inp" style="width:auto;min-width:190px;">
-            <option value="">All Categories</option>
+          <select name="category" class="inp" style="width:auto;min-width:170px;">
+            <option value="all">All Categories</option>
             {% for cat_name, cat_icon in categories %}
-            <option value="{{ cat_name }}" {% if search==cat_name %}selected{% endif %}>{{ cat_icon }} {{ cat_name }}</option>
+            <option value="{{ cat_name }}" {% if current_category==cat_name %}selected{% endif %}>{{ cat_icon }} {{ cat_name }}</option>
             {% endfor %}
           </select>
 
-          <select name="sort" class="inp" style="width:auto;min-width:170px;">
-            <option value="">No Sorting</option>
-            <option value="amount_asc"  {% if request.args.get('sort')=='amount_asc' %}selected{% endif %}>Amount Low → High</option>
-            <option value="amount_desc" {% if request.args.get('sort')=='amount_desc' %}selected{% endif %}>Amount High → Low</option>
-            <option value="date_desc"   {% if request.args.get('sort')=='date_desc' or not request.args.get('sort') %}selected{% endif %}>Newest First</option>
-            <option value="date_asc"    {% if request.args.get('sort')=='date_asc' %}selected{% endif %}>Oldest First</option>
+          <div class="relative flex-1 min-w-[200px]">
+            <input type="text" name="search" value="{{ search if search else '' }}" placeholder="Search description or category..." class="inp pl-10">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/60 pointer-events-none" style="font-size:18px;">search</span>
+          </div>
+
+          <select name="sort" class="inp" style="width:auto;min-width:160px;">
+            <option value="date_desc"   {% if sort=='date_desc' or not sort %}selected{% endif %}>Newest First</option>
+            <option value="date_asc"    {% if sort=='date_asc' %}selected{% endif %}>Oldest First</option>
+            <option value="amount_desc" {% if sort=='amount_desc' %}selected{% endif %}>Amount High → Low</option>
+            <option value="amount_asc"  {% if sort=='amount_asc' %}selected{% endif %}>Amount Low → High</option>
           </select>
 
           <div class="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
@@ -306,7 +310,7 @@
             class="bg-primary text-on-primary px-5 py-2.5 rounded-xl font-bold hover:brightness-110 transition-all text-sm">
             Apply Filters
           </button>
-          {% if search or start_date or end_date %}
+          {% if search or start_date or end_date or (current_category and current_category != 'all') or show_income == '1' %}
           <a href="/expenses" class="border border-outline-variant text-on-surface-variant px-4 py-2.5 rounded-xl font-bold hover:bg-surface-container-high transition-all text-sm">
             Clear
           </a>
@@ -404,13 +408,13 @@
                 <span class="material-symbols-outlined text-on-surface-variant/25 mb-3 block" style="font-size:40px;">receipt_long</span>
                 <h3 class="font-bold text-on-surface mb-1">No transactions found</h3>
                 <p class="text-sm text-on-surface-variant mb-5">
-                  {% if search or start_date or end_date %}
+                  {% if search or start_date or end_date or (current_category and current_category != 'all') %}
                     Try adjusting your filters.
                   {% else %}
                     Add your first expense to start tracking your spending.
                   {% endif %}
                 </p>
-                {% if search or start_date or end_date %}
+                {% if search or start_date or end_date or (current_category and current_category != 'all') %}
                 <a href="/expenses" class="text-xs font-bold text-primary border border-primary/30 bg-primary/6 px-4 py-2 rounded-lg hover:bg-primary/12 transition-colors inline-block">Clear Filters</a>
                 {% else %}
                 <button onclick="openAddPanel()" class="inline-flex items-center gap-2 bg-primary text-on-primary px-5 py-2.5 rounded-xl font-bold hover:brightness-110 transition-all text-sm">
@@ -424,6 +428,61 @@
           </tbody>
         </table>
       </div>
+
+      <!-- ── Pagination ── -->
+      {% if total_items and total_items > 0 %}
+      <div class="flex items-center justify-between mt-4 flex-wrap gap-3">
+        <p class="text-xs text-on-surface-variant font-medium">
+          Showing {{ start_item }}–{{ end_item }} of {{ total_items }} transaction{{ 's' if total_items != 1 else '' }}
+        </p>
+        {% if total_pages and total_pages > 1 %}
+        <div class="flex items-center gap-2">
+          {% set qs_params = [] %}
+          {% if current_category and current_category != 'all' %}{% set _ = qs_params.append('category=' ~ current_category) %}{% endif %}
+          {% if search %}{% set _ = qs_params.append('search=' ~ search) %}{% endif %}
+          {% if start_date %}{% set _ = qs_params.append('start_date=' ~ start_date) %}{% endif %}
+          {% if end_date %}{% set _ = qs_params.append('end_date=' ~ end_date) %}{% endif %}
+          {% if sort %}{% set _ = qs_params.append('sort=' ~ sort) %}{% endif %}
+          {% if show_income %}{% set _ = qs_params.append('show_income=' ~ show_income) %}{% endif %}
+          {% set base_qs = qs_params|join('&') %}
+          {% set prefix = '?' ~ base_qs ~ ('&' if base_qs else '?') %}
+
+          {% if page > 1 %}
+          <a href="{{ prefix }}page={{ page - 1 }}"
+             class="act-btn act-edit" style="width:auto;padding:0 14px;" title="Previous">
+            <span class="material-symbols-outlined" style="font-size:16px;">chevron_left</span>
+          </a>
+          {% else %}
+          <span class="act-btn" style="width:auto;padding:0 14px;opacity:.35;cursor:not-allowed;color:#86948a;border-color:#3c4a42;">
+            <span class="material-symbols-outlined" style="font-size:16px;">chevron_left</span>
+          </span>
+          {% endif %}
+
+          {% for p in range(1, total_pages + 1) %}
+            {% if p == page %}
+            <span class="act-btn" style="width:34px;background:rgba(78,222,163,.14);color:#4edea3;border-color:rgba(78,222,163,.3);font-weight:700;font-size:13px;">{{ p }}</span>
+            {% elif p == 1 or p == total_pages or (p >= page - 1 and p <= page + 1) %}
+            <a href="{{ prefix }}page={{ p }}"
+               class="act-btn" style="width:34px;color:#bbcabf;border-color:#3c4a42;font-size:13px;">{{ p }}</a>
+            {% elif p == 2 or p == total_pages - 1 %}
+            <span class="text-on-surface-variant text-xs px-1">…</span>
+            {% endif %}
+          {% endfor %}
+
+          {% if page < total_pages %}
+          <a href="{{ prefix }}page={{ page + 1 }}"
+             class="act-btn act-edit" style="width:auto;padding:0 14px;" title="Next">
+            <span class="material-symbols-outlined" style="font-size:16px;">chevron_right</span>
+          </a>
+          {% else %}
+          <span class="act-btn" style="width:auto;padding:0 14px;opacity:.35;cursor:not-allowed;color:#86948a;border-color:#3c4a42;">
+            <span class="material-symbols-outlined" style="font-size:16px;">chevron_right</span>
+          </span>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
 
     </div>
   </main>

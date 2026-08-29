@@ -168,3 +168,68 @@ def test_get_filter_form_omits_csrf_token(client, auth_client):
     get_form_html = html[form_start:form_end]
     assert 'name="csrf_token"' not in get_form_html
 
+
+def test_expenses_pagination_and_all_records_retention(client, dual_users):
+    """Verifies pagination renders explicit indicators, page 2 displays older transactions, adding an expense preserves all rows, and CSV exports full filtered dataset."""
+    uid_a = dual_users['id_a']
+    acc_a = dual_users['acc_a']
+
+    # Seed 15 expenses for User A with padded item names (Item-01 .. Item-15)
+    with get_db() as (conn, cursor):
+        cursor.execute("DELETE FROM expenses WHERE user_id=%s", (uid_a,))
+        for i in range(1, 16):
+            dt_day = f"{i:02d}"
+            cursor.execute(
+                "INSERT INTO expenses (user_id, amount, category, description, expense_date, account_id) "
+                "VALUES (%s, %s, 'Food', %s, %s, %s)",
+                (uid_a, float(i * 10), f"Item-{i:02d}", f"2026-08-{dt_day}", acc_a)
+            )
+
+    client.get('/logout')
+    client.post('/login', data={'email': dual_users['email_a'], 'password': dual_users['pw']}, follow_redirects=True)
+
+    # 1. GET Page 1 -> 10 items shown, explicit pagination indicator "Showing 1–10 of 15 transactions"
+    res = client.get('/expenses')
+    assert res.status_code == 200
+    html_p1 = res.data.decode('utf-8')
+    assert 'Showing 1–10 of 15 transactions' in html_p1
+    assert 'Item-15' in html_p1  # Newest item on Page 1 (date_desc)
+    assert 'Item-01' not in html_p1  # Oldest item moved to Page 2
+
+    # 2. GET Page 2 -> 5 items shown (items 01-05), "Showing 11–15 of 15 transactions"
+    res_p2 = client.get('/expenses?page=2')
+    assert res_p2.status_code == 200
+    html_p2 = res_p2.data.decode('utf-8')
+    assert 'Showing 11–15 of 15 transactions' in html_p2
+    assert 'Item-01' in html_p2  # Oldest item accessible on Page 2
+
+    # 3. Add 16th expense -> total count increases to 16, 0 rows deleted from database
+    client.post('/add-expense', data={
+        'amount': '999.00',
+        'category': 'Food',
+        'description': 'Item-16 New',
+        'expense_date': '2026-08-28',
+        'account_id': str(acc_a)
+    }, follow_redirects=True)
+
+    res_after = client.get('/expenses')
+    assert res_after.status_code == 200
+    html_after = res_after.data.decode('utf-8')
+    assert 'Showing 1–10 of 16 transactions' in html_after
+    assert 'Item-16 New' in html_after
+
+    with get_db() as (conn, cursor):
+        cursor.execute("SELECT COUNT(*) FROM expenses WHERE user_id=%s", (uid_a,))
+        assert cursor.fetchone()[0] == 16  # All 16 transactions intact in database!
+
+    # 4. CSV export exports ALL 16 matching records (not just the 10 on Page 1)
+    res_csv = client.get('/export')
+    assert res_csv.status_code == 200
+    csv_text = res_csv.data.decode('utf-8')
+    for i in range(1, 16):
+        assert f"Item-{i:02d}" in csv_text
+    assert "Item-16 New" in csv_text
+
+    client.get('/logout')
+
+

@@ -90,6 +90,8 @@ def expenses():
         total_pages = max(1, (total_items + per_page - 1) // per_page)
         page = max(1, min(page, total_pages))
         offset = (page - 1) * per_page
+        start_item = ((page - 1) * per_page) + 1 if total_items > 0 else 0
+        end_item = min(page * per_page, total_items)
 
         expense_list = fetch_filtered_transactions(
             cursor, user_id, start_date=start_date, end_date=end_date,
@@ -139,6 +141,8 @@ def expenses():
         page=page,
         total_pages=total_pages,
         total_items=total_items,
+        start_item=start_item,
+        end_item=end_item,
         expense_count=total_expense_cnt,
         current_month_total=total_spent,
         total_expenses=total_spent,
