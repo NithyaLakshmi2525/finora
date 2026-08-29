@@ -233,3 +233,31 @@ def test_expenses_pagination_and_all_records_retention(client, dual_users):
     client.get('/logout')
 
 
+def test_expenses_desktop_filter_row_and_helper_text(auth_client):
+    """Verifies all filter controls are present on Expenses page, category select is distinct from search input, desktop flex layout is active, and CSV helper text updates based on active filters."""
+    # 1. Unfiltered request
+    res = auth_client.get('/expenses')
+    assert res.status_code == 200
+    html = res.data.decode('utf-8')
+
+    # All required filter controls exist in the form
+    assert 'name="category"' in html
+    assert 'name="search"' in html
+    assert 'name="sort"' in html
+    assert 'name="start_date"' in html
+    assert 'name="end_date"' in html
+    assert 'name="show_income"' in html
+    assert 'Apply Filters' in html
+    assert 'xl:flex-nowrap' in html  # Desktop single row flex layout
+
+    # CSV Helper text for unfiltered view
+    assert 'Exports all transactions.' in html
+
+    # 2. Filtered request
+    res_filtered = auth_client.get('/expenses?category=Food&search=Dinner')
+    assert res_filtered.status_code == 200
+    html_f = res_filtered.data.decode('utf-8')
+    assert 'Exports only the transactions matching the filters above.' in html_f
+
+
+

@@ -271,35 +271,35 @@
       <p class="text-xs text-on-surface-variant/60 mb-6 -mt-3">Totals reflect your all-time data, not just the filtered rows below.</p>
 
       <!-- ── Filters ── -->
-      <div class="bg-surface-container border border-outline-variant rounded-2xl p-5 mb-6">
-        <form method="GET" class="flex flex-wrap gap-3 items-center">
-          <select name="category" class="inp" style="width:auto;min-width:170px;">
+      <div class="bg-surface-container border border-outline-variant rounded-2xl p-4 sm:p-5 mb-6">
+        <form method="GET" class="flex flex-wrap xl:flex-nowrap gap-2 sm:gap-2.5 items-center">
+          <select name="category" class="inp text-xs py-2 px-3" style="width:auto;min-width:130px;max-width:150px;">
             <option value="all">All Categories</option>
             {% for cat_name, cat_icon in categories %}
             <option value="{{ cat_name }}" {% if current_category==cat_name %}selected{% endif %}>{{ cat_icon }} {{ cat_name }}</option>
             {% endfor %}
           </select>
 
-          <div class="relative flex-1 min-w-[200px]">
-            <input type="text" name="search" value="{{ search if search else '' }}" placeholder="Search description or category..." class="inp pl-10">
-            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/60 pointer-events-none" style="font-size:18px;">search</span>
+          <div class="relative flex-1 min-w-[140px]">
+            <input type="text" name="search" value="{{ search if search else '' }}" placeholder="Search description..." class="inp text-xs py-2 pl-8 pr-3">
+            <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant/60 pointer-events-none" style="font-size:16px;">search</span>
           </div>
 
-          <select name="sort" class="inp" style="width:auto;min-width:160px;">
+          <select name="sort" class="inp text-xs py-2 px-3" style="width:auto;min-width:130px;max-width:145px;">
             <option value="date_desc"   {% if sort=='date_desc' or not sort %}selected{% endif %}>Newest First</option>
             <option value="date_asc"    {% if sort=='date_asc' %}selected{% endif %}>Oldest First</option>
             <option value="amount_desc" {% if sort=='amount_desc' %}selected{% endif %}>Amount High → Low</option>
             <option value="amount_asc"  {% if sort=='amount_asc' %}selected{% endif %}>Amount Low → High</option>
           </select>
 
-          <div class="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
-            <input type="date" name="start_date" value="{{ start_date if start_date else '' }}" class="inp date-range-input">
-            <span class="text-on-surface-variant text-sm text-center sm:text-left">to</span>
-            <input type="date" name="end_date" value="{{ end_date if end_date else '' }}" class="inp date-range-input">
+          <div class="flex items-center gap-1.5 w-full sm:w-auto">
+            <input type="date" name="start_date" value="{{ start_date if start_date else '' }}" class="inp text-xs py-2 px-2 date-range-input" style="min-width:115px;max-width:130px;">
+            <span class="text-on-surface-variant text-xs font-medium">to</span>
+            <input type="date" name="end_date" value="{{ end_date if end_date else '' }}" class="inp text-xs py-2 px-2 date-range-input" style="min-width:115px;max-width:130px;">
           </div>
 
-          <!-- Show Income toggle — wired to the show_income query param the backend already supports -->
-          <label class="chip-toggle {{ 'active' if show_income == '1' }}">
+          <!-- Show Income toggle -->
+          <label class="chip-toggle text-xs py-2 px-3 flex-shrink-0 {{ 'active' if show_income == '1' }}">
             <input type="checkbox" name="show_income" value="1" {{ 'checked' if show_income == '1' }} class="hidden"
               onchange="this.closest('form').submit()">
             <span class="material-symbols-outlined" style="font-size:15px;">trending_up</span>
@@ -307,11 +307,11 @@
           </label>
 
           <button type="submit"
-            class="bg-primary text-on-primary px-5 py-2.5 rounded-xl font-bold hover:brightness-110 transition-all text-sm">
+            class="bg-primary text-on-primary px-3.5 py-2 rounded-xl font-bold hover:brightness-110 transition-all text-xs whitespace-nowrap flex-shrink-0">
             Apply Filters
           </button>
           {% if search or start_date or end_date or (current_category and current_category != 'all') or show_income == '1' %}
-          <a href="/expenses" class="border border-outline-variant text-on-surface-variant px-4 py-2.5 rounded-xl font-bold hover:bg-surface-container-high transition-all text-sm">
+          <a href="/expenses" class="border border-outline-variant text-on-surface-variant px-3 py-2 rounded-xl font-bold hover:bg-surface-container-high transition-all text-xs whitespace-nowrap flex-shrink-0">
             Clear
           </a>
           {% endif %}
@@ -320,7 +320,7 @@
         <div class="mt-3 flex items-center justify-between text-xs text-on-surface-variant/80 pt-2.5 border-t border-outline-variant/40 flex-wrap gap-2">
           <span class="flex items-center gap-1.5" id="csvExportFilterNotice">
             <span class="material-symbols-outlined text-primary" style="font-size:15px;">info</span>
-            {% if has_active_filters %}
+            {% if search or start_date or end_date or (current_category and current_category != 'all') or show_income == '1' %}
               <span><strong class="text-primary font-semibold">Filtered CSV Export:</strong> Exports only the transactions matching the filters above.</span>
             {% else %}
               <span>Exports all transactions.</span>
