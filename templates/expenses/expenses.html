@@ -273,7 +273,6 @@
       <!-- ── Filters ── -->
       <div class="bg-surface-container border border-outline-variant rounded-2xl p-5 mb-6">
         <form method="GET" class="flex flex-wrap gap-3 items-center">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
           <select name="search" class="inp" style="width:auto;min-width:190px;">
             <option value="">All Categories</option>
             {% for cat_name, cat_icon in categories %}
@@ -341,10 +340,16 @@
           </thead>
           <tbody>
             {% for row in expenses %}
-            {% set is_income = row[6] == 'income' %}
-            {% set is_recurring = (not is_income) and row[7] %}
+            {% set is_income = row.is_income if row.is_income is defined else (row[6] == 'income') %}
+            {% set is_recurring = row.is_recurring if row.is_recurring is defined else ((not is_income) and row[7]) %}
+            {% set tx_id = row.id if row.id is defined else row[0] %}
+            {% set tx_amt = row.amount if row.amount is defined else row[1] %}
+            {% set tx_cat = row.category if row.category is defined else row[2] %}
+            {% set tx_desc = row.description if row.description is defined else row[3] %}
+            {% set tx_date_display = row.date_fmt if row.date_fmt is defined else (row.date if row.date is defined else row[4]) %}
+            {% set tx_date_iso = row.date if row.date is defined else row[4] %}
             <tr>
-              <td class="text-on-surface-variant text-[13px] whitespace-nowrap">{{ row[4] }}</td>
+              <td class="text-on-surface-variant text-[13px] whitespace-nowrap">{{ tx_date_display }}</td>
               <td>
                 <span class="type-badge {{ 'type-income' if is_income else 'type-expense' }}">
                   <span class="w-1.5 h-1.5 rounded-full bg-current opacity-80"></span>
@@ -354,39 +359,39 @@
               <td>
                 <span class="cat-badge">
                   {% if is_income %}💼
-                  {% elif row[2]|lower == 'food' %}🍕
-                  {% elif row[2]|lower == 'shopping' %}🛍️
-                  {% elif row[2]|lower == 'repairs' %}🔧
-                  {% elif row[2]|lower == 'travel' %}🚗
-                  {% elif row[2]|lower == 'bills' %}🧾
-                  {% elif row[2]|lower == 'health' %}🏥
-                  {% elif row[2]|lower == 'entertainment' %}🎬
-                  {% elif row[2]|lower == 'education' %}📚
+                  {% elif tx_cat|lower == 'food' %}🍕
+                  {% elif tx_cat|lower == 'shopping' %}🛍️
+                  {% elif tx_cat|lower == 'repairs' %}🔧
+                  {% elif tx_cat|lower == 'travel' %}🚗
+                  {% elif tx_cat|lower == 'bills' %}🧾
+                  {% elif tx_cat|lower == 'health' %}🏥
+                  {% elif tx_cat|lower == 'entertainment' %}🎬
+                  {% elif tx_cat|lower == 'education' %}📚
                   {% else %}💰{% endif %}
-                  {{ row[2] }}
+                  {{ tx_cat }}
                 </span>
               </td>
               <td class="font-medium text-on-surface">
-                {{ row[3] if row[3] else '—' }}
+                {{ tx_desc if tx_desc else '—' }}
                 {% if is_recurring %}
                 <span class="cat-badge" style="margin-left:6px;color:#adc6ff;border-color:rgba(173,198,255,.22);" title="Generated from a recurring expense">🔄 Recurring</span>
                 {% endif %}
               </td>
               <td class="text-right font-bold {{ 'text-primary' if is_income else 'text-error' }} whitespace-nowrap">
-                {{ '+' if is_income else '-' }}₹{{ "{:,.2f}".format(row[1]) }}
+                {{ '+' if is_income else '-' }}₹{{ "{:,.2f}".format(tx_amt) }}
               </td>
               <td class="text-center">
                 {% if is_income %}
-                <a href="/edit-income/{{ row[0] }}" class="text-xs text-secondary font-semibold hover:underline whitespace-nowrap">Manage →</a>
+                <a href="/edit-income/{{ tx_id }}" class="text-xs text-secondary font-semibold hover:underline whitespace-nowrap">Manage →</a>
                 {% elif is_recurring %}
                 <a href="/recurring" class="text-xs text-secondary font-semibold hover:underline whitespace-nowrap" title="This transaction was generated from a recurring expense. Manage it from the Recurring page.">Manage →</a>
                 {% else %}
                 <div class="flex justify-center gap-2">
-                  <button onclick='openEditPanel({{ row[0] }}, {{ row[1] }}, {{ row[2]|tojson }}, {{ (row[3] or "")|tojson }}, "{{ row[5] }}")'
+                  <button onclick='openEditPanel({{ tx_id }}, {{ tx_amt }}, {{ tx_cat|tojson }}, {{ (tx_desc or "")|tojson }}, "{{ tx_date_iso }}")'
                     class="act-btn act-edit" title="Edit">
                     <span class="material-symbols-outlined" style="font-size:16px;">edit</span>
                   </button>
-                  <button onclick="confirmDelete({{ row[0] }})" class="act-btn act-delete" title="Delete">
+                  <button onclick="confirmDelete({{ tx_id }})" class="act-btn act-delete" title="Delete">
                     <span class="material-symbols-outlined" style="font-size:16px;">delete</span>
                   </button>
                 </div>

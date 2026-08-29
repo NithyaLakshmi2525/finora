@@ -16,6 +16,44 @@ CATEGORY_ALIASES = {
     'transport': 'Transport',
 }
 
+class TransactionDict(dict):
+    """
+    A dictionary representation of a transaction supporting both key access (tx['type'])
+    and attribute/positional indexing (tx[0]) for full backward compatibility.
+    
+    Positional Index Mapping:
+    0: id
+    1: amount (float)
+    2: category
+    3: description
+    4: date_fmt / date
+    5: account_id
+    6: type ('expense' or 'income')
+    7: recurring_id
+    """
+    def __getitem__(self, item):
+        if isinstance(item, int):
+            mapping = [
+                self.get('id'),
+                self.get('amount'),
+                self.get('category'),
+                self.get('description'),
+                self.get('date_fmt') or self.get('date'),
+                self.get('account_id'),
+                self.get('type'),
+                self.get('recurring_id')
+            ]
+            if 0 <= item < len(mapping):
+                return mapping[item]
+            raise IndexError("TransactionDict index out of range")
+        return super().__getitem__(item)
+
+    def __getattr__(self, name):
+        try:
+            return self[name]
+        except KeyError:
+            raise AttributeError(f"'TransactionDict' object has no attribute '{name}'")
+
 def normalize_category_name(name):
     if not name:
         return name
@@ -49,12 +87,24 @@ def csv_escape(val):
     return s
 
 def fetch_filtered_transactions(cursor, user_id, start_date=None, end_date=None, category=None, search=None, sort_order='desc', show_income=False, limit=None, offset=None):
-    order_dir = 'ASC' if str(sort_order).lower() == 'asc' else 'DESC'
+    """
+    Fetches filtered transactions for user_id.
+    Returns a list of TransactionDict objects preserving transaction type ('expense' vs 'income').
+    """
+    sort_param = str(sort_order).lower()
+    if sort_param in ('amount_asc', 'asc'):
+        order_clause = "tx_date ASC, id ASC"
+    elif sort_param in ('amount_desc',):
+        order_clause = "amount DESC, tx_date DESC, id DESC"
+    elif sort_param in ('date_asc',):
+        order_clause = "tx_date ASC, id ASC"
+    else:
+        order_clause = "tx_date DESC, id DESC"
 
     if show_income:
-        # Union expenses and income when show_income is enabled
         query = (
-            "SELECT expense_id AS id, expense_date AS tx_date, category, description, amount, 'Expense' AS tx_type "
+            "SELECT expense_id AS id, expense_date AS tx_date, category AS category, "
+            "description, amount, account_id, 'expense' AS tx_type, recurring_id "
             "FROM expenses WHERE user_id=%s"
         )
         params = [user_id]
@@ -71,7 +121,12 @@ def fetch_filtered_transactions(cursor, user_id, start_date=None, end_date=None,
             query += " AND (description LIKE %s OR category LIKE %s)"
             params.extend([f"%{search}%", f"%{search}%"])
 
-        query += " UNION ALL SELECT income_id AS id, income_date AS tx_date, source AS category, description, amount, 'Income' AS tx_type FROM income WHERE user_id=%s"
+        query += (
+            " UNION ALL "
+            "SELECT income_id AS id, income_date AS tx_date, source AS category, "
+            "description, amount, account_id, 'income' AS tx_type, NULL AS recurring_id "
+            "FROM income WHERE user_id=%s"
+        )
         params.append(user_id)
         if start_date:
             query += " AND income_date >= %s"
@@ -86,34 +141,67 @@ def fetch_filtered_transactions(cursor, user_id, start_date=None, end_date=None,
             query += " AND (description LIKE %s OR source LIKE %s)"
             params.extend([f"%{search}%", f"%{search}%"])
 
-        query += f" ORDER BY tx_date {order_dir}, id {order_dir}"
+        query += f" ORDER BY {order_clause}"
         if limit is not None and offset is not None:
             query += " LIMIT %s OFFSET %s"
             params.extend([int(limit), int(offset)])
         cursor.execute(query, tuple(params))
-        return cursor.fetchall()
+        rows = cursor.fetchall()
+    else:
+        query = (
+            "SELECT expense_id AS id, expense_date AS tx_date, category, "
+            "description, amount, account_id, 'expense' AS tx_type, recurring_id "
+            "FROM expenses WHERE user_id=%s"
+        )
+        params = [user_id]
+        if start_date:
+            query += " AND expense_date >= %s"
+            params.append(start_date)
+        if end_date:
+            query += " AND expense_date <= %s"
+            params.append(end_date)
+        if category and category != 'all':
+            query += " AND category = %s"
+            params.append(category)
+        if search:
+            query += " AND (description LIKE %s OR category LIKE %s)"
+            params.extend([f"%{search}%", f"%{search}%"])
 
-    query = "SELECT expense_id, expense_date, category, description, amount FROM expenses WHERE user_id=%s"
-    params = [user_id]
-    if start_date:
-        query += " AND expense_date >= %s"
-        params.append(start_date)
-    if end_date:
-        query += " AND expense_date <= %s"
-        params.append(end_date)
-    if category and category != 'all':
-        query += " AND category = %s"
-        params.append(category)
-    if search:
-        query += " AND (description LIKE %s OR category LIKE %s)"
-        params.extend([f"%{search}%", f"%{search}%"])
+        query += f" ORDER BY {order_clause}"
+        if limit is not None and offset is not None:
+            query += " LIMIT %s OFFSET %s"
+            params.extend([int(limit), int(offset)])
+        cursor.execute(query, tuple(params))
+        rows = cursor.fetchall()
 
-    query += f" ORDER BY expense_date {order_dir}, expense_id {order_dir}"
-    if limit is not None and offset is not None:
-        query += " LIMIT %s OFFSET %s"
-        params.extend([int(limit), int(offset)])
-    cursor.execute(query, tuple(params))
-    return cursor.fetchall()
+    results = []
+    for r in rows:
+        tx_id, tx_date, cat_val, desc_val, amt_val, acc_id, tx_type, rec_id = r
+        amt_float = float(amt_val or 0)
+        dt_str = str(tx_date) if tx_date else ''
+        if hasattr(tx_date, 'strftime'):
+            dt_fmt = tx_date.strftime('%d %b %Y')
+            dt_iso = tx_date.strftime('%Y-%m-%d')
+        else:
+            dt_fmt = dt_str
+            dt_iso = dt_str
+
+        tx_dict = TransactionDict({
+            'id': tx_id,
+            'amount': amt_float,
+            'category': cat_val or 'Other',
+            'description': desc_val or '',
+            'date': dt_iso,
+            'date_fmt': dt_fmt,
+            'account_id': acc_id,
+            'type': str(tx_type).lower() if tx_type else 'expense',
+            'recurring_id': rec_id,
+            'is_income': str(tx_type).lower() == 'income',
+            'is_recurring': bool(rec_id) and str(tx_type).lower() != 'income',
+        })
+        results.append(tx_dict)
+
+    return results
 
 def build_income_context(cursor, user_id, page=1, per_page=10):
     cursor.execute("SELECT COALESCE(SUM(amount), 0) FROM income WHERE user_id=%s", (user_id,))

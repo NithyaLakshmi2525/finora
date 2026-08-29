@@ -97,18 +97,27 @@ def expenses():
             limit=per_page, offset=offset
         )
 
+        # Expense summary metrics (Always EXPENSE-ONLY, never altered by Show Income)
         cursor.execute(
-            "SELECT COALESCE(SUM(amount), 0) FROM expenses "
-            "WHERE user_id=%s AND DATE_FORMAT(expense_date, '%Y-%m') = DATE_FORMAT(CURRENT_DATE(), '%Y-%m')",
+            "SELECT COALESCE(SUM(amount), 0), COUNT(*), COALESCE(AVG(amount), 0), COALESCE(MAX(amount), 0) "
+            "FROM expenses WHERE user_id=%s",
             (user_id,)
         )
-        current_month_total = float(cursor.fetchone()[0])
+        total_spent, total_expense_cnt, avg_exp, highest_amt = cursor.fetchone()
+        total_spent = float(total_spent)
+        total_expense_cnt = int(total_expense_cnt)
+        avg_exp = float(avg_exp)
+        highest_amt = float(highest_amt)
 
-        cursor.execute(
-            "SELECT COALESCE(MAX(amount), 0) FROM expenses WHERE user_id=%s",
-            (user_id,)
-        )
-        highest_amount = float(cursor.fetchone()[0])
+        highest_desc = ''
+        if highest_amt > 0:
+            cursor.execute(
+                "SELECT description FROM expenses WHERE user_id=%s AND amount=%s ORDER BY expense_id DESC LIMIT 1",
+                (user_id, highest_amt)
+            )
+            h_row = cursor.fetchone()
+            if h_row and h_row[0]:
+                highest_desc = h_row[0]
 
         categories = get_categories(cursor)
         user_accounts = get_user_accounts(cursor, user_id)
@@ -130,12 +139,13 @@ def expenses():
         page=page,
         total_pages=total_pages,
         total_items=total_items,
-        expense_count=total_items,
-        current_month_total=current_month_total,
-        total_expenses=current_month_total,
-        total_spent=current_month_total,
-        avg_expense=current_month_total,
-        highest_amount=highest_amount,
+        expense_count=total_expense_cnt,
+        current_month_total=total_spent,
+        total_expenses=total_spent,
+        total_spent=total_spent,
+        avg_expense=avg_exp,
+        highest_amount=highest_amt,
+        highest_desc=highest_desc,
         active_page='expenses'
     )
 

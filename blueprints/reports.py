@@ -191,10 +191,12 @@ def export_csv():
 
     csv_data = "ID,Date,Category,Description,Amount,Type\n" if show_income else "ID,Date,Category,Description,Amount\n"
     for r in rows:
-        if len(r) >= 6:
-            csv_data += f"{r[0]},{r[1]},{csv_escape(r[2])},{csv_escape(r[3])},{r[4]},{r[5]}\n"
+        tx_type_title = "Income" if r['type'] == 'income' else "Expense"
+        amt_str = f"{r['amount']:.2f}"
+        if show_income:
+            csv_data += f"{r['id']},{r['date']},{csv_escape(r['category'])},{csv_escape(r['description'])},{amt_str},{tx_type_title}\n"
         else:
-            csv_data += f"{r[0]},{r[1]},{csv_escape(r[2])},{csv_escape(r[3])},{r[4]}\n"
+            csv_data += f"{r['id']},{r['date']},{csv_escape(r['category'])},{csv_escape(r['description'])},{amt_str}\n"
 
     return Response(
         csv_data,
