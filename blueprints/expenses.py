@@ -2,7 +2,7 @@ import json
 from flask import Blueprint, render_template, request, redirect, session, flash, Response, jsonify
 from datetime import date
 from db import get_db
-from services.ledger_service import get_categories, build_income_context, csv_escape, fetch_filtered_transactions
+from services.ledger_service import get_categories, build_income_context, csv_escape, fetch_filtered_transactions, count_filtered_transactions, parse_financial_amount
 from services.settlement_service import balance_expense_description
 from services.account_service import (
     get_user_accounts, get_default_account_id,
@@ -24,10 +24,14 @@ def add_expense():
 
     user_id = session['user_id']
     if request.method == 'POST':
-        amount = float(request.form['amount'])
-        category = request.form['category']
+        amount, amt_err = parse_financial_amount(request.form.get('amount'))
+        if amt_err:
+            flash(amt_err, "error")
+            return redirect('/expenses')
+
+        category = request.form.get('category', 'Other')
         description = request.form.get('description', '')
-        expense_date = request.form['expense_date']
+        expense_date = request.form.get('expense_date') or date.today().isoformat()
         raw_acc_id = request.form.get('account_id')
 
         with get_db() as (conn, cursor):
@@ -82,11 +86,10 @@ def expenses():
         sort_order = 'desc'
 
     with get_db() as (conn, cursor):
-        all_matching = fetch_filtered_transactions(
+        total_items = count_filtered_transactions(
             cursor, user_id, start_date=start_date, end_date=end_date,
-            category=category, search=search, sort_order=sort_order, show_income=show_income
+            category=category, search=search, show_income=show_income
         )
-        total_items = len(all_matching)
         total_pages = max(1, (total_items + per_page - 1) // per_page)
         page = max(1, min(page, total_pages))
         offset = (page - 1) * per_page
@@ -186,10 +189,14 @@ def edit_expense(expense_id):
     user_id = session['user_id']
     with get_db() as (conn, cursor):
         if request.method == 'POST':
-            amount = float(request.form['amount'])
-            category = request.form['category']
+            amount, amt_err = parse_financial_amount(request.form.get('amount'))
+            if amt_err:
+                flash(amt_err, "error")
+                return redirect('/expenses')
+
+            category = request.form.get('category', 'Other')
             description = request.form.get('description', '')
-            expense_date = request.form['expense_date']
+            expense_date = request.form.get('expense_date') or date.today().isoformat()
             raw_acc_id = request.form.get('account_id')
 
             cursor.execute("SELECT account_id, amount FROM expenses WHERE expense_id=%s AND user_id=%s", (expense_id, user_id))
@@ -326,8 +333,12 @@ def income():
         process_due_recurring_income(user_id, cursor, conn)
 
         if request.method == 'POST':
-            amount = float(request.form['amount'])
-            source = request.form['source']
+            amount, amt_err = parse_financial_amount(request.form.get('amount'))
+            if amt_err:
+                flash(amt_err, "error")
+                return redirect('/income')
+
+            source = request.form.get('source', 'Salary')
             description = request.form.get('description', '')
             income_date = request.form.get('date') or request.form.get('income_date') or date.today().isoformat()
             raw_acc_id = request.form.get('account_id')
@@ -366,10 +377,14 @@ def edit_income(income_id):
     user_id = session['user_id']
     with get_db() as (conn, cursor):
         if request.method == 'POST':
-            amount = float(request.form['amount'])
-            source = request.form['source']
+            amount, amt_err = parse_financial_amount(request.form.get('amount'))
+            if amt_err:
+                flash(amt_err, "error")
+                return redirect('/income')
+
+            source = request.form.get('source', 'Salary')
             description = request.form.get('description', '')
-            date_val = request.form['date']
+            date_val = request.form.get('date') or date.today().isoformat()
             raw_acc_id = request.form.get('account_id')
 
             cursor.execute("SELECT account_id, amount FROM income WHERE income_id=%s AND user_id=%s", (income_id, user_id))
@@ -439,8 +454,16 @@ def add_rec_income():
         return redirect('/login')
 
     user_id = session['user_id']
-    title = request.form['title']
-    amount = float(request.form['amount'])
+    title = request.form.get('title', '').strip()
+    if not title:
+        flash("Title is required.", "error")
+        return redirect('/income')
+
+    amount, amt_err = parse_financial_amount(request.form.get('amount'))
+    if amt_err:
+        flash(amt_err, "error")
+        return redirect('/income')
+
     source = request.form.get('source', 'Salary')
     frequency = request.form.get('frequency', 'Monthly')
     next_pay_date = request.form.get('next_pay_date') or date.today().isoformat()

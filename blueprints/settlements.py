@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, request, redirect, session, flash,
 from datetime import date
 from db import get_db
 from services.settlement_service import balance_expense_description, build_settlements_summary
-from services.ledger_service import get_categories
+from services.ledger_service import get_categories, parse_financial_amount
 from services.account_service import (
     get_default_account_id,
     adjust_account_on_expense_create,
@@ -73,13 +73,10 @@ def settlements():
         if request.method == 'POST':
             peer_name = request.form.get('peer_name', '').strip()
             direction = request.form.get('direction', 'they_owe_me')
-            try:
-                raw_amount = float(request.form.get('amount', 0))
-            except ValueError:
-                raw_amount = 0.0
+            raw_amount, amt_err = parse_financial_amount(request.form.get('amount'))
 
-            if not peer_name or raw_amount <= 0:
-                err = "Valid person name and positive amount are required."
+            if not peer_name or amt_err:
+                err = amt_err or "Valid person name is required."
                 if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
                     return jsonify({'error': err}), 400
                 flash(err, "error")

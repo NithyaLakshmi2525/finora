@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, session, flash
 from db import get_db
-from services.ledger_service import get_categories
+from services.ledger_service import get_categories, parse_financial_amount
 from services.budget_service import (
     get_user_budgets, set_budget_limit, delete_budget_limit, get_budget_alerts
 )
@@ -37,8 +37,13 @@ def set_budget():
 
     user_id = session['user_id']
     category = request.form.get('category', 'Overall').strip() or 'Overall'
-    raw_limit = request.form.get('monthly_limit') or request.form.get('monthly_budget') or request.form.get('amount') or 0.0
-    limit = float(raw_limit)
+    raw_limit = request.form.get('monthly_limit') or request.form.get('monthly_budget') or request.form.get('amount')
+    limit, amt_err = parse_financial_amount(raw_limit, allow_zero=True)
+    if amt_err:
+        flash(amt_err, "error")
+        next_url = request.referrer if request.referrer and ('/settings' in request.referrer or '/budgets' in request.referrer) else '/budgets'
+        return redirect(next_url)
+
     currency = request.form.get('currency', 'INR').strip() or 'INR'
 
     with get_db() as (conn, cursor):

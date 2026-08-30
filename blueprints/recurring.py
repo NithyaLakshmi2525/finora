@@ -3,7 +3,7 @@ from datetime import date
 from db import get_db
 from services.recurring_service import advance_recurring_date, process_due_auto_charges
 from services.account_service import get_default_account_id, adjust_account_on_expense_create
-from services.ledger_service import get_categories
+from services.ledger_service import get_categories, parse_financial_amount
 from services.notification_service import create_notification, get_notification_prefs
 from services.budget_service import set_budget_limit
 
@@ -19,11 +19,19 @@ def recurring():
         process_due_auto_charges(user_id, cursor, conn, get_notification_prefs, create_notification)
 
         if request.method == 'POST':
-            name = request.form['name']
-            amount = float(request.form['amount'])
+            name = request.form.get('name', '').strip()
+            if not name:
+                flash("Title/Name is required.", "error")
+                return redirect('/recurring')
+
+            amount, amt_err = parse_financial_amount(request.form.get('amount'))
+            if amt_err:
+                flash(amt_err, "error")
+                return redirect('/recurring')
+
             category = request.form.get('category') or None
-            repeats = request.form['repeats']
-            next_date = request.form['next_charge_date']
+            repeats = request.form.get('repeats', 'Monthly')
+            next_date = request.form.get('next_charge_date') or date.today().isoformat()
             icon = request.form.get('icon', '⚡')
             recurring_type = request.form.get('recurring_type', 'auto')
 
@@ -234,7 +242,12 @@ def update_recurring(id):
 def set_budget():
     if 'user_id' not in session:
         return redirect('/login')
-    new_budget = float(request.form.get('monthly_budget') or request.form.get('monthly_limit') or request.form.get('amount') or 0.0)
+    raw_budget = request.form.get('monthly_budget') or request.form.get('monthly_limit') or request.form.get('amount')
+    new_budget, amt_err = parse_financial_amount(raw_budget, allow_zero=True)
+    if amt_err:
+        flash(amt_err, "error")
+        return redirect(request.referrer or '/recurring')
+
     category = request.form.get('category', 'Overall').strip() or 'Overall'
     currency = request.form.get('currency', 'INR').strip() or 'INR'
     user_id = session['user_id']

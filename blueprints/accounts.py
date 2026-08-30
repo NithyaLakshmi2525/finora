@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, session, flash, jsonify
 from werkzeug.security import check_password_hash
 from db import get_db
+from services.ledger_service import parse_financial_amount
 from services.account_service import (
     get_accounts_summary, create_account, update_account, archive_account, restore_account, delete_account, ACCOUNT_TYPES
 )
@@ -35,7 +36,12 @@ def add_account():
     user_id = session['user_id']
     name = request.form.get('name', '').strip()
     account_type = request.form.get('account_type', 'checking')
-    initial_balance = float(request.form.get('initial_balance', 0.0) or 0.0)
+    raw_bal = request.form.get('initial_balance', '0')
+    initial_balance, bal_err = parse_financial_amount(raw_bal, allow_zero=True, allow_negative=True)
+    if bal_err:
+        flash(bal_err, 'error')
+        return redirect('/accounts')
+
     currency = request.form.get('currency', 'INR').strip() or 'INR'
 
     if not name:

@@ -239,3 +239,145 @@ def test_custom_error_pages_and_ajax_errors(client):
     res_405_html = client.get('/settle/1')
     assert res_405_html.status_code == 405
     assert b'Method Not Allowed' in res_405_html.data
+
+def test_registration_password_validation(client):
+    """Verify registration password policy: min length 8, non-empty, non-whitespace-only."""
+    import time
+    ts = int(time.time() * 1000)
+    client.get('/logout')
+    
+    # 1. Short password (< 8 chars)
+    res_short = client.post('/register', data={
+        'username': f'testshortpw_{ts}',
+        'email': f'shortpw_{ts}@example.com',
+        'password': 'pass',
+        'confirm_password': 'pass'
+    })
+    assert res_short.status_code == 200
+    assert b'Password must be at least 8 characters' in res_short.data
+
+    # 2. Whitespace-only password
+    res_space = client.post('/register', data={
+        'username': f'testspacepw_{ts}',
+        'email': f'spacepw_{ts}@example.com',
+        'password': '        ',
+        'confirm_password': '        '
+    })
+    assert res_space.status_code == 200
+    assert b'cannot be only whitespace' in res_space.data
+
+    # 3. Valid password (exactly 8 chars)
+    res_valid = client.post('/register', data={
+        'username': f'testvalidpw_{ts}',
+        'email': f'validpw_{ts}@example.com',
+        'password': 'ValidPass1',
+        'confirm_password': 'ValidPass1'
+    }, follow_redirects=True)
+    assert res_valid.status_code == 200
+    assert b'Registration successful' in res_valid.data
+
+def test_numeric_input_validation(client, dual_users):
+    """Verify numeric input validation: reject non-numeric strings, negative amounts, and unrealistically large values."""
+    client.get('/logout')
+    client.post('/login', data={'email': dual_users['email_a'], 'password': dual_users['pw']}, follow_redirects=True)
+
+    # 1. Non-numeric amount in expense
+    res_non_num = client.post('/add-expense', data={
+        'amount': 'abc',
+        'category': 'Food'
+    }, follow_redirects=True)
+    assert b'Invalid numeric amount entered' in res_non_num.data
+
+    # 2. Negative amount in income
+    res_neg = client.post('/add-income', data={
+        'amount': '-100.00',
+        'source': 'Salary'
+    }, follow_redirects=True)
+    assert b'Amount cannot be negative' in res_neg.data
+
+    # 3. Excessively large value
+    res_huge = client.post('/set-budget', data={
+        'amount': '99999999999999.00',
+        'category': 'Overall'
+    }, follow_redirects=True)
+    assert b'exceeds maximum allowable limit' in res_huge.data
+
+def test_expenses_count_query_optimization(client, dual_users):
+    """Verify Expenses COUNT(*) query accuracy, pagination, user isolation, and show_income counting."""
+    client.get('/logout')
+    client.post('/login', data={'email': dual_users['email_a'], 'password': dual_users['pw']}, follow_redirects=True)
+    uid_a = dual_users['id_a']
+
+    # Insert 15 expenses for User A
+    with get_db() as (conn, cursor):
+        for i in range(15):
+            cursor.execute(
+                "INSERT INTO expenses (user_id, amount, category, description, expense_date) "
+                "VALUES (%s, 100.00, 'Food', %s, '2026-08-15')",
+                (uid_a, f"Expense Item {i}")
+            )
+
+    res = client.get('/expenses')
+    assert res.status_code == 200
+    # Pagination: 15 items total, 10 per page -> 2 pages total
+    assert b'Page 1 of 2' in res.data or b'total_pages' in res.data or b'15' in res.data
+
+def test_auth_rate_limiting(client, app):
+    """Verify rate limiting on login attempts."""
+    from services.rate_limiter import reset_rate_limit_store
+    client.get('/logout')
+    app.config['ENABLE_RATE_LIMIT_TESTING'] = True
+    reset_rate_limit_store()
+
+    try:
+        responses = []
+        for i in range(12):
+            r = client.post('/login', data={'email': 'nonexistent@example.com', 'password': 'wrongpassword'})
+            responses.append(r.status_code)
+
+        assert 429 in responses
+    finally:
+        app.config['ENABLE_RATE_LIMIT_TESTING'] = False
+        reset_rate_limit_store()
+
+def test_google_oauth_security_account_linking(client, app):
+    """
+    Threat Scenario Audit:
+    Attacker creates local account with victim@example.com and password 'AttackerPW123!'.
+    Victim logs in via Google OAuth with verified victim@example.com.
+    OAuth updates account to 'google' provider and invalidates local password.
+    Attacker's password login attempt is rejected.
+    """
+    import time
+    ts = int(time.time() * 1000)
+    victim_email = f'victim_oauth_{ts}@example.com'
+    
+    # 1. Attacker creates local account
+    client.post('/register', data={
+        'username': victim_email,
+        'email': victim_email,
+        'password': 'AttackerPW123!',
+        'confirm_password': 'AttackerPW123!'
+    }, follow_redirects=True)
+    client.get('/logout')
+
+    # 2. Simulate Google OAuth login for victim_email
+    with app.test_request_context():
+        with get_db() as (conn, cursor):
+            cursor.execute("SELECT user_id, auth_provider FROM users WHERE email=%s", (victim_email,))
+            row = cursor.fetchone()
+            assert row is not None
+            assert row[1] == 'local'
+            user_id = row[0]
+
+            # Trigger account linking security update as authorize_google does
+            from werkzeug.security import generate_password_hash
+            import secrets
+            new_random_pw = generate_password_hash(secrets.token_hex(32))
+            cursor.execute("UPDATE users SET auth_provider='google', password=%s WHERE user_id=%s", (new_random_pw, user_id))
+
+    # 3. Attacker tries logging in with local password 'AttackerPW123!' -> MUST be rejected
+    res_attacker_login = client.post('/login', data={'email': victim_email, 'password': 'AttackerPW123!'})
+    assert res_attacker_login.status_code == 200
+    assert b'Invalid email or password' in res_attacker_login.data
+

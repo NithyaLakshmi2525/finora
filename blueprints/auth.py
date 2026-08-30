@@ -12,6 +12,7 @@ from services.recurring_service import process_due_auto_charges
 from services.account_service import reset_user_financial_data
 from services.budget_service import get_user_budgets
 from services.email_service import send_password_reset_email
+from services.rate_limiter import check_rate_limit, get_client_ip
 from config import Config
 
 auth_bp = Blueprint('auth', __name__)
@@ -178,10 +179,24 @@ def register():
     if 'user_id' in session:
         return redirect('/')
     if request.method == 'POST':
-        username = request.form['username'].strip()
-        email = request.form['email'].strip().lower()
-        password = request.form['password']
-        confirm_password = request.form['confirm_password']
+        client_ip = get_client_ip()
+        allowed, retry_after = check_rate_limit(f"register:{client_ip}", max_requests=5, window_seconds=60)
+        if not allowed:
+            flash(f"Too many registration attempts. Please try again in {retry_after} seconds.", "error")
+            return render_template('auth/register.html'), 429
+
+        username = request.form.get('username', '').strip()
+        email = request.form.get('email', '').strip().lower()
+        password = request.form.get('password', '')
+        confirm_password = request.form.get('confirm_password', '')
+
+        if not username or not email or not password or not confirm_password:
+            flash("All registration fields are required.", "error")
+            return render_template('auth/register.html')
+
+        if not password.strip() or len(password) < 8:
+            flash("Password must be at least 8 characters long and cannot be only whitespace.", "error")
+            return render_template('auth/register.html')
 
         if password != confirm_password:
             flash("Passwords do not match. Please try again.", "error")
@@ -218,8 +233,14 @@ def login():
     if 'user_id' in session:
         return redirect('/')
     if request.method == 'POST':
-        email = request.form['email'].strip().lower()
-        password = request.form['password']
+        client_ip = get_client_ip()
+        allowed, retry_after = check_rate_limit(f"login:{client_ip}", max_requests=10, window_seconds=60)
+        if not allowed:
+            flash(f"Too many login attempts. Please try again in {retry_after} seconds.", "error")
+            return render_template('auth/login.html'), 429
+
+        email = request.form.get('email', '').strip().lower()
+        password = request.form.get('password', '')
 
         with get_db() as (conn, cursor):
             cursor.execute("SELECT user_id, username, password, display_name FROM users WHERE email=%s", (email,))
@@ -411,6 +432,12 @@ def forgot_password():
         return redirect('/')
 
     if request.method == 'POST':
+        client_ip = get_client_ip()
+        allowed, retry_after = check_rate_limit(f"forgot_password:{client_ip}", max_requests=5, window_seconds=60)
+        if not allowed:
+            flash("Too many password reset requests. Please try again in a few moments.", "info")
+            return render_template('auth/forgot_password.html'), 429
+
         email = request.form.get('email', '').strip().lower()
         if email:
             with get_db() as (conn, cursor):
@@ -568,7 +595,7 @@ def authorize_google():
         display_name = user_info.get('name') or google_email.split('@')[0]
 
         with get_db() as (conn, cursor):
-            cursor.execute("SELECT user_id, username, display_name FROM users WHERE email=%s OR username=%s", (google_email, google_email))
+            cursor.execute("SELECT user_id, username, display_name, auth_provider FROM users WHERE email=%s OR username=%s", (google_email, google_email))
             user = cursor.fetchone()
 
             if not user:
@@ -585,8 +612,14 @@ def authorize_google():
                 )
                 username = google_email
             else:
-                user_id, username, existing_display_name = user[0], user[1], user[2]
+                user_id, username, existing_display_name, auth_provider = user[0], user[1], user[2], user[3]
                 display_name = existing_display_name or display_name
+                if auth_provider != 'google':
+                    new_random_pw = generate_password_hash(secrets.token_hex(32))
+                    cursor.execute(
+                        "UPDATE users SET auth_provider='google', password=%s WHERE user_id=%s",
+                        (new_random_pw, user_id)
+                    )
 
         session['user_id'] = user_id
         session['username'] = username

@@ -246,3 +246,93 @@ def build_income_context(cursor, user_id, page=1, per_page=10):
         'page': page,
         'total_pages': total_pages,
     }
+
+def count_filtered_transactions(cursor, user_id, start_date=None, end_date=None, category=None, search=None, show_income=False):
+    """
+    Executes an efficient COUNT(*) query across expenses (and optionally income) for user_id.
+    Avoids loading full row sets into Python memory.
+    """
+    if show_income:
+        query_exp = "SELECT COUNT(*) FROM expenses WHERE user_id=%s"
+        params_exp = [user_id]
+        if start_date:
+            query_exp += " AND expense_date >= %s"
+            params_exp.append(start_date)
+        if end_date:
+            query_exp += " AND expense_date <= %s"
+            params_exp.append(end_date)
+        if category and category != 'all':
+            query_exp += " AND category = %s"
+            params_exp.append(category)
+        if search:
+            query_exp += " AND (description LIKE %s OR category LIKE %s)"
+            params_exp.extend([f"%{search}%", f"%{search}%"])
+
+        cursor.execute(query_exp, tuple(params_exp))
+        exp_count = cursor.fetchone()[0]
+
+        query_inc = "SELECT COUNT(*) FROM income WHERE user_id=%s"
+        params_inc = [user_id]
+        if start_date:
+            query_inc += " AND income_date >= %s"
+            params_inc.append(start_date)
+        if end_date:
+            query_inc += " AND income_date <= %s"
+            params_inc.append(end_date)
+        if category and category != 'all':
+            query_inc += " AND source = %s"
+            params_inc.append(category)
+        if search:
+            query_inc += " AND (description LIKE %s OR source LIKE %s)"
+            params_inc.extend([f"%{search}%", f"%{search}%"])
+
+        cursor.execute(query_inc, tuple(params_inc))
+        inc_count = cursor.fetchone()[0]
+
+        return exp_count + inc_count
+    else:
+        query = "SELECT COUNT(*) FROM expenses WHERE user_id=%s"
+        params = [user_id]
+        if start_date:
+            query += " AND expense_date >= %s"
+            params.append(start_date)
+        if end_date:
+            query += " AND expense_date <= %s"
+            params.append(end_date)
+        if category and category != 'all':
+            query += " AND category = %s"
+            params.append(category)
+        if search:
+            query += " AND (description LIKE %s OR category LIKE %s)"
+            params.extend([f"%{search}%", f"%{search}%"])
+
+        cursor.execute(query, tuple(params))
+        return cursor.fetchone()[0]
+
+def parse_financial_amount(value_str, allow_zero=False, allow_negative=False, max_limit=99999999.99):
+    """
+    Robust financial numeric input validation.
+    Returns (parsed_float, error_message).
+    """
+    if value_str is None or str(value_str).strip() == '':
+        return None, "Amount is required."
+    try:
+        val = float(value_str)
+    except (ValueError, TypeError):
+        return None, "Invalid numeric amount entered."
+
+    import math
+    if math.isnan(val) or math.isinf(val):
+        return None, "Amount must be a valid finite number."
+
+    if not allow_negative and val < 0:
+        return None, "Amount cannot be negative."
+
+    if not allow_zero and val == 0:
+        return None, "Amount must be greater than zero."
+
+    if abs(val) > max_limit:
+        return None, f"Amount exceeds maximum allowable limit of ₹{max_limit:,.2f}."
+
+    return round(val, 2), None
+

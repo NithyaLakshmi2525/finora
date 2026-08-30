@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, request, redirect, session, flash,
 from datetime import date, datetime, timedelta
 from db import get_db
 from services.goal_service import compute_goal_display, motivation_for_percent, build_goal_summary
+from services.ledger_service import parse_financial_amount
 
 goals_bp = Blueprint('goals', __name__)
 
@@ -98,8 +99,15 @@ def add_goal():
         return redirect('/login')
     if request.method == 'POST':
         goal_name = request.form['goal_name'].strip()
-        target_amount = float(request.form['target_amount'])
-        initial_amount = float(request.form.get('current_amount', 0) or 0)
+        target_amount, err1 = parse_financial_amount(request.form.get('target_amount'))
+        if err1:
+            flash(err1, "error")
+            return redirect('/add-goal')
+        initial_amount, err2 = parse_financial_amount(request.form.get('current_amount', 0) or 0, allow_zero=True)
+        if err2:
+            flash(err2, "error")
+            return redirect('/add-goal')
+
         target_date = request.form.get('target_date') or None
         description = request.form.get('description', '').strip()
         icon = request.form.get('icon', '🎯')
@@ -211,25 +219,22 @@ def update_goal(goal_id):
 
     user_id = session['user_id']
     action_type = (request.form.get('action_type') or request.form.get('type') or 'deposit').strip().lower()
-    raw_amount = request.form.get('amount') or request.form.get('added_amount') or '0'
-    try:
-        amount = float(raw_amount)
-    except ValueError:
-        amount = 0.0
-
-    if action_type in ('withdraw', 'withdrawal'):
-        amount = -abs(amount)
-    elif action_type == 'deposit':
-        amount = abs(amount)
-
-    note = request.form.get('note', '').strip() or None
+    raw_amount = request.form.get('amount') or request.form.get('added_amount')
     is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json
 
-    if amount == 0:
+    amount_val, amt_err = parse_financial_amount(raw_amount)
+    if amt_err:
         if is_ajax:
-            return jsonify({'error': 'Amount must be non-zero.'}), 400
-        flash("Amount must be non-zero.", "error")
+            return jsonify({'error': amt_err}), 400
+        flash(amt_err, "error")
         return redirect(f"/goals/{goal_id}")
+
+    if action_type in ('withdraw', 'withdrawal'):
+        amount = -abs(amount_val)
+    else:
+        amount = abs(amount_val)
+
+    note = request.form.get('note', '').strip() or None
 
     with get_db() as (conn, cursor):
         cursor.execute(
