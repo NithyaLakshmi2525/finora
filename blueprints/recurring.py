@@ -1,7 +1,8 @@
-from flask import Blueprint, render_template, request, redirect, session, flash
+from flask import Blueprint, render_template, request, redirect, session, flash, jsonify
 from datetime import date
 from db import get_db
 from services.recurring_service import advance_recurring_date, process_due_auto_charges
+from services.account_service import get_default_account_id, adjust_account_on_expense_create
 from services.ledger_service import get_categories
 from services.notification_service import create_notification, get_notification_prefs
 from services.budget_service import set_budget_limit
@@ -36,7 +37,7 @@ def recurring():
             return redirect('/recurring')
 
         cursor.execute(
-            "SELECT recurring_id, title, amount, category, frequency, next_charge_date, icon, status, recurring_type "
+            "SELECT recurring_id, title, amount, category, frequency, DATE_FORMAT(next_charge_date, '%Y-%m-%d'), icon, status, recurring_type "
             "FROM recurring_expenses WHERE user_id=%s ORDER BY status ASC, next_charge_date ASC",
             (user_id,)
         )
@@ -44,7 +45,7 @@ def recurring():
         items = [{
             'recurring_id': r[0], 'id': r[0], 'title': r[1], 'name': r[1],
             'amount': float(r[2] or 0), 'category': r[3], 'frequency': r[4], 'repeats': r[4],
-            'next_charge_date': r[5], 'icon': r[6] or '⚡', 'status': r[7], 'recurring_type': r[8],
+            'next_charge_date': r[5], 'next_date': r[5], 'icon': r[6] or '⚡', 'status': r[7], 'recurring_type': r[8],
             'yearly': float(r[2] or 0) * (12 if r[4] == 'Monthly' else (52 if r[4] == 'Weekly' else 1))
         } for r in raw_items]
 
@@ -81,15 +82,23 @@ def recurring():
 @recurring_bp.route('/delete-recurring/<int:id>', methods=['POST'])
 def delete_recurring(id):
     if 'user_id' not in session:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+            return jsonify({'error': 'Unauthorized'}), 401
         return redirect('/login')
     with get_db() as (conn, cursor):
         cursor.execute("DELETE FROM recurring_expenses WHERE recurring_id=%s AND user_id=%s", (id, session['user_id']))
+
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+        return jsonify({'success': True, 'message': 'Subscription deleted successfully!'})
+
     flash("Subscription deleted successfully!", "success")
     return redirect('/recurring')
 
 @recurring_bp.route('/confirm-paid/<int:id>', methods=['POST'])
 def confirm_paid(id):
     if 'user_id' not in session:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+            return jsonify({'error': 'Unauthorized'}), 401
         return redirect('/login')
     user_id = session['user_id']
     with get_db() as (conn, cursor):
@@ -100,32 +109,60 @@ def confirm_paid(id):
         )
         item = cursor.fetchone()
         if not item:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+                return jsonify({'error': 'Recurring expense not found.'}), 404
             flash("Recurring expense not found.", "error")
             return redirect('/recurring')
 
         title, amount, category, frequency, next_date = item
-        charge_date = next_date if next_date else date.today()
+        raw_charge_date = request.form.get('charge_date') or request.form.get('expense_date')
+        if raw_charge_date:
+            try:
+                charge_date = date.fromisoformat(str(raw_charge_date))
+            except ValueError:
+                charge_date = next_date if next_date else date.today()
+        else:
+            charge_date = next_date if next_date else date.today()
+        account_id = get_default_account_id(cursor, user_id)
 
+        # Idempotency check: check if an expense was already logged for this charge date
         cursor.execute(
-            "INSERT INTO expenses (amount, category, description, expense_date, user_id, recurring_id) "
-            "VALUES (%s, %s, %s, %s, %s, %s)",
-            (amount, category or 'Other', f"{title} (bill paid)", charge_date, user_id, id)
+            "SELECT expense_id FROM expenses WHERE recurring_id=%s AND expense_date=%s AND user_id=%s",
+            (id, charge_date, user_id)
         )
+        already_paid = cursor.fetchone()
 
-        new_next_date = advance_recurring_date(charge_date, frequency)
-        cursor.execute(
-            "UPDATE recurring_expenses SET next_charge_date=%s WHERE recurring_id=%s AND user_id=%s",
-            (new_next_date, id, user_id)
-        )
+        if already_paid:
+            msg = f"Payment for {title} on {charge_date} was already logged!"
+        else:
+            cursor.execute(
+                "INSERT INTO expenses (amount, category, description, expense_date, user_id, recurring_id, account_id) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                (amount, category or 'Other', f"{title} (bill paid)", charge_date, user_id, id, account_id)
+            )
+            adjust_account_on_expense_create(cursor, account_id, amount)
 
-    flash(f"Paid {title}! ₹{float(amount):,.0f} logged to Expenses.", "success")
+            new_next_date = advance_recurring_date(charge_date, frequency)
+            cursor.execute(
+                "UPDATE recurring_expenses SET next_charge_date=%s WHERE recurring_id=%s AND user_id=%s",
+                (new_next_date, id, user_id)
+            )
+            msg = f"Paid {title}! ₹{float(amount):,.0f} logged to Expenses."
+
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+        return jsonify({'success': True, 'message': msg})
+
+    flash(msg, "success")
     return redirect('/recurring')
 
 @recurring_bp.route('/toggle-recurring/<int:id>', methods=['POST'])
 def toggle_recurring(id):
     if 'user_id' not in session:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+            return jsonify({'error': 'Unauthorized'}), 401
         return redirect('/login')
     user_id = session['user_id']
+    new_status = 'active'
     with get_db() as (conn, cursor):
         cursor.execute("SELECT status FROM recurring_expenses WHERE recurring_id=%s AND user_id=%s", (id, user_id))
         row = cursor.fetchone()
@@ -135,18 +172,47 @@ def toggle_recurring(id):
                 "UPDATE recurring_expenses SET status=%s WHERE recurring_id=%s AND user_id=%s",
                 (new_status, id, user_id)
             )
+        else:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+                return jsonify({'error': 'Subscription not found'}), 404
+
+    msg = f"Subscription marked as {new_status}."
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+        return jsonify({'success': True, 'status': new_status, 'message': msg})
+
+    flash(msg, "success")
     return redirect('/recurring')
 
 @recurring_bp.route('/update-recurring/<int:id>', methods=['POST'])
 def update_recurring(id):
     if 'user_id' not in session:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+            return jsonify({'error': 'Unauthorized'}), 401
         return redirect('/login')
-    name = request.form['name']
-    amount = float(request.form['amount'])
+    name = request.form.get('name', '').strip()
+    try:
+        amount = float(request.form.get('amount', 0))
+    except ValueError:
+        amount = 0.0
+
+    if not name or amount <= 0:
+        err = "Valid name and positive amount are required."
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+            return jsonify({'error': err}), 400
+        flash(err, "error")
+        return redirect('/recurring')
+
     category = request.form.get('category') or None
-    frequency = request.form['repeats']
+    frequency = request.form.get('repeats', 'Monthly')
     icon = request.form.get('icon', '⚡')
     next_date = request.form.get('next_charge_date') or None
+    if next_date:
+        try:
+            from datetime import datetime as dt_cls
+            dt_cls.strptime(next_date, '%Y-%m-%d')
+        except ValueError:
+            next_date = None
+
     recurring_type = request.form.get('recurring_type', 'auto')
 
     with get_db() as (conn, cursor):
@@ -157,7 +223,11 @@ def update_recurring(id):
             (name, amount, category, frequency, next_date, icon, recurring_type, id, session['user_id'])
         )
 
-    flash("Subscription updated successfully!", "success")
+    msg = "Subscription updated successfully!"
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+        return jsonify({'success': True, 'message': msg})
+
+    flash(msg, "success")
     return redirect('/recurring')
 
 @recurring_bp.route('/set-budget', methods=['POST'])

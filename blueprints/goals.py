@@ -57,6 +57,9 @@ def goals():
                 'target_date_fmt': g[10], 'description': g[6], 'icon': g[7] or '🎯',
                 'color': g[8] or '#4edea3', 'closed_at': g[9], **disp
             })
+        active_goals = [g for g in processed_goals if not g.get('closed_at')]
+        closed_goals = [g for g in processed_goals if g.get('closed_at')]
+
         goal_summary = build_goal_summary(cursor, user_id)
         cursor.execute(
             "SELECT COALESCE(SUM(amount), 0) FROM income "
@@ -76,13 +79,15 @@ def goals():
         'goals/goals.html',
         username=session['username'],
         display_name=session.get('display_name', session['username']),
-        goals=processed_goals,
+        goals=active_goals,
+        active_goals=active_goals,
+        closed_goals=closed_goals,
         goal_summary=goal_summary,
         total_balance=goal_summary['total_reserved'],
         reserved_for_goals=goal_summary['total_reserved'],
         total_target=goal_summary['total_target'],
         available_balance=available_balance,
-        active_count=goal_summary['total_goals'],
+        active_count=len(active_goals),
         overall_progress=goal_summary['overall_pct_rounded'],
         active_page='goals'
     )
@@ -205,11 +210,17 @@ def update_goal(goal_id):
         return redirect('/login')
 
     user_id = session['user_id']
+    action_type = (request.form.get('action_type') or request.form.get('type') or 'deposit').strip().lower()
     raw_amount = request.form.get('amount') or request.form.get('added_amount') or '0'
     try:
         amount = float(raw_amount)
     except ValueError:
         amount = 0.0
+
+    if action_type in ('withdraw', 'withdrawal'):
+        amount = -abs(amount)
+    elif action_type == 'deposit':
+        amount = abs(amount)
 
     note = request.form.get('note', '').strip() or None
     is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json
@@ -232,7 +243,15 @@ def update_goal(goal_id):
             flash("Goal not found.", "error")
             return redirect('/goals')
 
-        new_current = float(g_row[0] or 0) + amount
+        current_res = float(g_row[0] or 0)
+        if amount < 0 and abs(amount) > current_res:
+            err_msg = f"Cannot withdraw ₹{abs(amount):,.2f} — only ₹{current_res:,.2f} is reserved in this goal."
+            if is_ajax:
+                return jsonify({'error': err_msg}), 400
+            flash(err_msg, "error")
+            return redirect(f"/goals/{goal_id}")
+
+        new_current = current_res + amount
         cursor.execute(
             "UPDATE savings_goals SET current_amount=%s WHERE goal_id=%s AND user_id=%s",
             (new_current, goal_id, user_id)
@@ -277,6 +296,11 @@ def edit_contribution(goal_id, contribution_id):
             return jsonify({'error': 'Transaction not found'}), 404
 
         old_amount = float(row[0] or 0)
+        if old_amount < 0 and new_amount > 0:
+            new_amount = -new_amount
+        elif old_amount >= 0 and new_amount < 0:
+            new_amount = abs(new_amount)
+
         diff = new_amount - old_amount
 
         cursor.execute(

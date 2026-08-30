@@ -35,10 +35,56 @@ def test_savings_goals_and_contributions(auth_client, test_user):
         cursor.execute("SELECT current_amount FROM savings_goals WHERE goal_id=%s", (g_id,))
         assert float(cursor.fetchone()[0]) == 5000.00
 
-    # Close & Delete Goal
-    res = auth_client.post(f'/close-goal/{g_id}', follow_redirects=True)
+    # Deposit ₹20
+    res = auth_client.post(f'/update-goal/{g_id}', data={
+        'action_type': 'deposit',
+        'added_amount': '20.00',
+        'note': 'Deposit 20'
+    }, follow_redirects=True)
     assert res.status_code == 200
 
+    with get_db() as (conn, cursor):
+        cursor.execute("SELECT current_amount FROM savings_goals WHERE goal_id=%s", (g_id,))
+        assert float(cursor.fetchone()[0]) == 5020.00
+
+    # Withdraw ₹20
+    res = auth_client.post(f'/update-goal/{g_id}', data={
+        'action_type': 'withdraw',
+        'added_amount': '20.00',
+        'note': 'Withdraw 20'
+    }, follow_redirects=True)
+    assert res.status_code == 200
+
+    with get_db() as (conn, cursor):
+        cursor.execute("SELECT current_amount FROM savings_goals WHERE goal_id=%s", (g_id,))
+        assert float(cursor.fetchone()[0]) == 5000.00
+        cursor.execute("SELECT amount FROM goal_contributions WHERE goal_id=%s ORDER BY contribution_id DESC LIMIT 1", (g_id,))
+        assert float(cursor.fetchone()[0]) == -20.00
+
+    # Excessive Withdrawal Rejection
+    res = auth_client.post(f'/update-goal/{g_id}', data={
+        'action_type': 'withdraw',
+        'added_amount': '99999.00',
+        'note': 'Too much'
+    }, headers={'X-Requested-With': 'XMLHttpRequest'})
+    assert res.status_code == 400
+    assert 'Cannot withdraw' in res.get_json()['error']
+
+    # Close Goal
+    res = auth_client.post(f'/close-goal/{g_id}', follow_redirects=True)
+    assert res.status_code == 200
+    with get_db() as (conn, cursor):
+        cursor.execute("SELECT closed_at FROM savings_goals WHERE goal_id=%s", (g_id,))
+        assert cursor.fetchone()[0] is not None
+
+    # Restore Goal
+    res = auth_client.post(f'/restore-goal/{g_id}', follow_redirects=True)
+    assert res.status_code == 200
+    with get_db() as (conn, cursor):
+        cursor.execute("SELECT closed_at FROM savings_goals WHERE goal_id=%s", (g_id,))
+        assert cursor.fetchone()[0] is None
+
+    # Delete Goal
     res = auth_client.post(f'/delete-goal/{g_id}', follow_redirects=True)
     assert res.status_code == 200
 

@@ -236,7 +236,15 @@
               <p class="text-[11px] text-on-surface-variant/60 mt-1.5">The money hasn't left your account yet — adds it to your Expenses, Dashboard, and Reports.</p>
               <div id="addExpenseCategoryWrap" class="mt-2.5" style="display:none;">
                 <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Category</label>
-                <select name="expense_category" id="addExpenseCategory" class="inp"></select>
+                <select name="expense_category" id="addExpenseCategory" class="inp">
+                  {% if categories %}
+                    {% for cat_name, cat_icon in categories %}
+                      <option value="{{ cat_name }}">{{ cat_icon }} {{ cat_name }}</option>
+                    {% endfor %}
+                  {% else %}
+                    <option value="Other">📋 Other</option>
+                  {% endif %}
+                </select>
               </div>
             </div>
             <div id="addLinkedExpenseWrap" style="display:none;">
@@ -245,6 +253,11 @@
               </label>
               <select name="linked_expense_id" id="addLinkedExpense" class="inp">
                 <option value="">No linked expense</option>
+                {% if recent_expenses %}
+                  {% for exp in recent_expenses %}
+                    <option value="{{ exp.id }}">{{ exp.label }}</option>
+                  {% endfor %}
+                {% endif %}
               </select>
               <p class="text-[11px] text-on-surface-variant/60 mt-1.5">If you already paid the full bill, link the expense you logged — this just marks their share as a receivable, it won't add anything new to your spending.</p>
             </div>

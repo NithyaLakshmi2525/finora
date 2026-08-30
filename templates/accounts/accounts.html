@@ -222,6 +222,56 @@ if (localStorage.getItem('theme') === 'light') document.documentElement.classLis
           </div>
         {% endfor %}
       </div>
+
+      <!-- ── Archived Accounts ── -->
+      {% if summary.archived_accounts %}
+      <div class="mt-10">
+        <div class="flex items-center gap-2 mb-4">
+          <span class="material-symbols-outlined text-on-surface-variant" style="font-size:18px;">archive</span>
+          <h2 class="text-base font-extrabold text-on-surface-variant">Archived Accounts</h2>
+          <span class="text-xs text-on-surface-variant/60">({{ summary.archived_count }})</span>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {% for acc in summary.archived_accounts %}
+          <div class="bg-surface-container/60 border border-outline-variant/60 rounded-2xl p-5 relative opacity-75 hover:opacity-100 transition-opacity">
+            <div class="flex items-start justify-between mb-3">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-surface-container-high flex items-center justify-center text-lg">
+                  {% if acc.account_type == 'checking' %}🏦
+                  {% elif acc.account_type == 'savings' %}💰
+                  {% elif acc.account_type == 'credit_card' %}💳
+                  {% elif acc.account_type == 'cash' %}💵
+                  {% else %}📱{% endif %}
+                </div>
+                <div>
+                  <h3 class="font-bold text-on-surface text-base">{{ acc.name }}</h3>
+                  <span class="inline-block text-[11px] font-medium text-amber-400/90 bg-amber-400/10 px-2 py-0.5 rounded mt-0.5">Archived</span>
+                </div>
+              </div>
+            </div>
+            <div class="mb-4">
+              <p class="text-xs text-on-surface-variant">Balance</p>
+              <p class="text-xl font-extrabold text-on-surface-variant">
+                ₹{{ "{:,.2f}".format(acc.balance) }}
+              </p>
+            </div>
+            <div class="pt-3 border-t border-outline-variant/40 flex items-center justify-between">
+              <form action="/restore-account/{{ acc.account_id }}" method="POST" class="inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <button type="submit" class="flex items-center gap-1 text-xs text-primary font-semibold hover:underline bg-transparent border-0 cursor-pointer">
+                  <span class="material-symbols-outlined" style="font-size:16px;">unarchive</span> Restore Account
+                </button>
+              </form>
+              <button onclick="openDeleteAccountModal('{{ acc.account_id }}', '{{ acc.name | escape }}')"
+                      class="text-xs text-error/70 font-semibold hover:text-error transition-colors flex items-center gap-1" title="Delete Account">
+                <span class="material-symbols-outlined" style="font-size:16px;">delete</span> Delete
+              </button>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
     </div>
   </main>
 </div>

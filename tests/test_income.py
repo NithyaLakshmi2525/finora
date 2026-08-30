@@ -34,3 +34,17 @@ def test_income_crud(auth_client, test_user):
     with get_db() as (conn, cursor):
         cursor.execute("SELECT COUNT(*) FROM income WHERE income_id=%s", (inc_id,))
         assert cursor.fetchone()[0] == 0
+
+def test_get_income_page_rendering_and_drawer_structure(auth_client, test_user):
+    """Regression test proving GET /income renders successfully with HTTP 200, valid HTML elements, and no JS errors."""
+    res = auth_client.get('/income')
+    assert res.status_code == 200
+    assert b'Income' in res.data
+    assert b'incomePanel' in res.data
+    assert b'panel-overlay' in res.data
+    assert b'openAddIncomePanel' in res.data
+    assert b'openEditIncomePanel' in res.data
+    assert b'restoreIncomeScroll' in res.data
+    # Ensure no old missing element IDs are referenced in JS
+    assert b'sourceHidden' not in res.data
+    assert b'formDropdownLabel' not in res.data

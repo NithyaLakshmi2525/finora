@@ -235,7 +235,13 @@
             {% if upcoming %}
               <div class="divide-y divide-outline-variant">
                 {% for item in upcoming[:6] %}
-                <div class="timeline-row" data-next="{{ item.next_date }}" data-type="{{ item.recurring_type }}">
+                <div class="timeline-row hover:bg-surface-container-high cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 rounded-xl p-2"
+                     role="button"
+                     tabindex="0"
+                     onclick="scrollToSubscription('sub-card-{{ item.id }}')"
+                     onkeydown="if(event.key==='Enter'||event.key===' '){ event.preventDefault(); scrollToSubscription('sub-card-{{ item.id }}'); }"
+                     data-next="{{ item.next_date }}" data-type="{{ item.recurring_type }}"
+                     title="Jump to {{ item.name }} subscription">
                   <div class="tl-dot bg-on-surface-variant/30 tl-status"></div>
                   <span class="text-lg w-6 text-center flex-shrink-0">{{ item.icon }}</span>
                   <div class="flex-1 min-w-0">
@@ -299,7 +305,7 @@
           {% if items %}
           <div id="cardsGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {% for item in items %}
-            <div class="sub-card subscription-card"
+            <div class="sub-card subscription-card" id="sub-card-{{ item.id }}"
               data-name="{{ item.name | lower }}"
               data-category="{{ (item.category or '') | lower }}"
               data-freq="{{ item.repeats | lower }}"
@@ -787,6 +793,17 @@
 
 <!-- ═══════════ SCRIPTS ═══════════ -->
 <script>
+function scrollToSubscription(cardId) {
+  const el = document.getElementById(cardId);
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.add('ring-2', 'ring-primary', 'ring-offset-2', 'ring-offset-surface');
+    setTimeout(() => {
+      el.classList.remove('ring-2', 'ring-primary', 'ring-offset-2', 'ring-offset-surface');
+    }, 2500);
+  }
+}
+
 /* ── Category icon map (mirrors the shared Categories list from the
    backend) — used as the last fallback tier below. ── */
 const CATEGORY_ICON_MAP = Object.fromEntries({{ categories | tojson }});

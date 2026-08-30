@@ -188,6 +188,14 @@
                 <div class="card-menu" id="cardMenu-{{ goal.id }}">
                   <button type="button" onclick="location.href='/goals/{{ goal.id }}'"><span class="material-symbols-outlined" style="font-size:15px;">visibility</span> View</button>
                   <button type="button" onclick="location.href='/edit-goal/{{ goal.id }}'"><span class="material-symbols-outlined" style="font-size:15px;">edit</span> Edit</button>
+                  <form method="POST" action="/close-goal/{{ goal.id }}" class="block w-full">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <button type="submit" class="w-full text-left text-amber-400 hover:bg-surface-container-high flex items-center gap-2 px-3 py-2 text-xs font-semibold"><span class="material-symbols-outlined" style="font-size:15px;">flag</span> Close Goal</button>
+                  </form>
+                  <form method="POST" action="/delete-goal/{{ goal.id }}" class="block w-full" onsubmit="return confirm('Permanently delete {{ goal.name }}?')">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <button type="submit" class="w-full text-left danger hover:bg-surface-container-high flex items-center gap-2 px-3 py-2 text-xs font-semibold"><span class="material-symbols-outlined" style="font-size:15px;">delete</span> Delete</button>
+                  </form>
                 </div>
               </div>
             </div>
@@ -268,9 +276,9 @@
                 <div class="goal-icon-tile" style="background:#31353c;">{{ goal.icon }}</div>
                 <h3 class="font-bold text-[15px] text-on-surface-variant leading-snug truncate">{{ goal.name }}</h3>
               </div>
-              <span class="text-xs font-bold px-2.5 py-1 rounded-lg bg-on-surface-variant/10 text-on-surface-variant flex-shrink-0">Closed</span>
+              <span class="text-[11px] font-extrabold px-2.5 py-1 rounded-lg bg-red-500/15 text-red-400 border border-red-500/30 uppercase tracking-wide flex-shrink-0">CLOSED</span>
             </div>
-            <p class="text-xs text-on-surface-variant mb-3">Target was ₹{{ "{:,.0f}".format(goal.target) }} · Closed {{ goal.closed_at_display }}</p>
+            <p class="text-xs text-on-surface-variant mb-3">Target was ₹{{ "{:,.0f}".format(goal.target) }} · Closed on {{ goal.closed_at_display or 'recently' }}</p>
             <div class="pt-2.5 border-t border-outline-variant/40 flex items-center justify-between">
               <a href="/goals/{{ goal.id }}" class="text-xs text-secondary font-semibold hover:underline">View →</a>
               <form method="POST" action="/restore-goal/{{ goal.id }}" class="inline">

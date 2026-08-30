@@ -1,7 +1,7 @@
 import os
 import secrets
 from werkzeug.security import check_password_hash, generate_password_hash
-from flask import Flask, render_template, session
+from flask import Flask, render_template, session, request, jsonify
 from flask_wtf.csrf import CSRFProtect
 from authlib.integrations.flask_client import OAuth
 
@@ -51,13 +51,34 @@ def create_app():
     app.register_blueprint(budgets_bp)
 
     # Centralized Error Handlers
+    def render_error_response(code, title, icon, description):
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+            return jsonify({'error': description, 'status': code}), code
+        return render_template('error.html', code=code, title=title, icon=icon, description=description), code
+
+    @app.errorhandler(400)
+    def bad_request_error(error):
+        return render_error_response(400, "Bad Request", "warning", "The server could not process the request due to invalid or missing data.")
+
+    @app.errorhandler(401)
+    def unauthorized_error(error):
+        return render_error_response(401, "Unauthorized", "lock", "You must be logged in to view this page or perform this action.")
+
+    @app.errorhandler(403)
+    def forbidden_error(error):
+        return render_error_response(403, "Access Denied", "shield", "You do not have permission to access this resource.")
+
     @app.errorhandler(404)
     def not_found_error(error):
-        return render_template('404.html'), 404
+        return render_error_response(404, "Page Not Found", "search_off", "The page or route you requested does not exist or has been moved.")
+
+    @app.errorhandler(405)
+    def method_not_allowed_error(error):
+        return render_error_response(405, "Method Not Allowed", "block", "This action is not available via GET. Please submit requests using the proper application controls.")
 
     @app.errorhandler(500)
     def internal_error(error):
-        return render_template('500.html'), 500
+        return render_error_response(500, "Server Error", "dns", "Something unexpected went wrong on our side. Please try again later.")
 
     return app
 

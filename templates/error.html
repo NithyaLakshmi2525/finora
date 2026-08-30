@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>{{ code }} — {{ title }} | Finora</title>
+<script>
+if (localStorage.getItem('theme') === 'light') document.documentElement.classList.remove('dark');
+</script>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        primary: '#4edea3',
+        'on-primary': '#003822',
+        background: '#10141a',
+        'surface-container': '#1c2026',
+        'on-surface': '#dfe2eb',
+        'on-surface-variant': '#bbcabf',
+        'outline-variant': '#3c4a42',
+        error: '#f87171',
+      },
+      fontFamily: {
+        sans: ['Plus Jakarta Sans', 'sans-serif'],
+        display: ['Space Grotesk', 'sans-serif'],
+      }
+    }
+  }
+}
+</script>
+</head>
+<body class="bg-background text-on-surface font-sans antialiased min-h-screen flex flex-col items-center justify-center p-6 text-center">
+  <div class="bg-surface-container border border-outline-variant rounded-3xl p-8 max-w-md w-full shadow-2xl">
+    <div class="w-16 h-16 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mx-auto mb-4">
+      <span class="material-symbols-outlined text-3xl">{{ icon or 'error' }}</span>
+    </div>
+    <h1 class="text-2xl font-display font-extrabold mb-2">{{ code }} — {{ title }}</h1>
+    <p class="text-sm text-on-surface-variant mb-6">{{ description }}</p>
+    <a href="/" class="inline-flex items-center gap-2 bg-primary text-on-primary font-bold px-6 py-3 rounded-xl hover:brightness-110 shadow-lg shadow-primary/15 transition-all text-sm">
+      <span class="material-symbols-outlined text-lg">home</span>
+      Return to Finora
+    </a>
+  </div>
+</body>
+</html>

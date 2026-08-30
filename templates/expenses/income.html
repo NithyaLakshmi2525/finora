@@ -173,6 +173,21 @@
   /* ── Modal overlay (delete confirm) ── */
   .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.78); backdrop-filter:blur(6px); align-items:center; justify-content:center; z-index:1000; }
   .modal-overlay.open { display:flex; }
+
+  /* ── Slide-over panel (matching Expenses edit drawer) ── */
+  .panel-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:400; backdrop-filter:blur(2px); }
+  .panel-overlay.open { display:block; }
+  .slide-panel {
+    position:fixed; top:0; right:-480px; width:440px; max-width:95vw; height:100vh;
+    background:#1c2026; border-left:1px solid #3c4a42; z-index:500;
+    display:flex; flex-direction:column; transition:right .28s cubic-bezier(.4,0,.2,1); overflow-y:auto;
+  }
+  .slide-panel.open { right:0; }
+  .panel-header { display:flex; justify-content:space-between; align-items:center; padding:24px 28px 16px; border-bottom:1px solid #3c4a42; position:sticky; top:0; background:#1c2026; z-index:1; }
+  .panel-close { background:none; border:none; color:#86948a; font-size:22px; cursor:pointer; padding:4px 8px; border-radius:6px; line-height:1; }
+  .panel-close:hover { color:#dfe2eb; background:#262a31; }
+  .panel-body { padding:24px 28px; display:flex; flex-direction:column; gap:16px; flex:1; }
+  .panel-footer { padding:16px 28px 28px; display:flex; gap:12px; border-top:1px solid #3c4a42; position:sticky; bottom:0; background:#1c2026; }
 </style>
 </head>
 <body class="bg-surface text-on-surface min-h-screen">
@@ -182,6 +197,72 @@
   class="fixed bottom-6 right-6 bg-surface-container-high border border-outline-variant text-on-surface text-sm font-semibold px-5 py-3 rounded-xl shadow-2xl z-50 flex items-center gap-2.5 opacity-0 pointer-events-none transition-opacity duration-200">
   <span class="material-symbols-outlined text-primary" id="toastIcon" style="font-size:16px;">check_circle</span>
   <span id="toastMsg"></span>
+<!-- Slide-over overlay -->
+<div class="panel-overlay" id="panelOverlay" onclick="closeIncomePanel()"></div>
+
+<!-- Slide-over panel (shared for Add + Edit Income) -->
+<div class="slide-panel" id="incomePanel">
+  <div class="panel-header">
+    <h2 id="incomePanelTitle" class="text-lg font-extrabold">Add Income</h2>
+    <button class="panel-close" onclick="closeIncomePanel()">
+      <span class="material-symbols-outlined" style="font-size:20px;">close</span>
+    </button>
+  </div>
+
+  {% set all_sources = [
+    ('Salary', '💼'), ('Freelance', '💻'), ('Business', '🏢'), ('Bonus', '💸'),
+    ('Scholarship', '🎓'), ('Family Support', '👨‍👩‍👧'), ('Investments', '📈'),
+    ('Bank Interest', '🏦'), ('Rental Income', '🏠'), ('Gift', '🎁'),
+    ('Cashback', '💰'), ('Refund', '🔄'), ('Loan Received', '💵'), ('Other', '📋')
+  ] %}
+
+  <form id="incomeDrawerForm" method="POST" action="/income">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+    <div class="panel-body">
+      <div>
+        <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Amount (₹)</label>
+        <input type="number" name="amount" id="drawerAmount" step="0.01" min="0" required placeholder="0.00" class="inp">
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Source</label>
+        <select name="source" id="drawerSource" class="inp">
+          {% for s_name, s_icon in all_sources %}
+          <option value="{{ s_name }}">{{ s_icon }} {{ s_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Description <span class="normal-case font-normal text-on-surface-variant/60">(optional)</span></label>
+        <input type="text" name="description" id="drawerDescription" placeholder="e.g. June Salary" class="inp">
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Date</label>
+        <input type="date" name="date" id="drawerDate" required class="inp">
+      </div>
+      {% if user_accounts %}
+      <div>
+        <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Account</label>
+        <select name="account_id" id="drawerAccount" class="inp">
+          {% for acc in user_accounts %}
+          <option value="{{ acc.account_id }}">{{ acc.name }} (₹{{ "{:,.2f}".format(acc.balance) }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      <p class="text-[11px] text-on-surface-variant/45 leading-snug">
+        <span class="font-semibold">Note:</span> Loan Received is tracked as cash inflow, not earned income, in analysis &amp; reports.
+      </p>
+    </div>
+
+    <div class="panel-footer">
+      <button type="button" onclick="closeIncomePanel()" class="flex-1 py-2.5 rounded-xl border border-outline-variant text-on-surface-variant hover:bg-surface-container-high transition-all font-bold text-sm">
+        Cancel
+      </button>
+      <button type="submit" id="incomePanelSubmitBtn" class="flex-1 bg-primary text-on-primary py-2.5 rounded-xl font-bold hover:brightness-110 transition-all shadow-lg shadow-primary/15 text-sm">
+        Save Income
+      </button>
+    </div>
+  </form>
 </div>
 
 <div class="flex min-h-screen">
@@ -199,6 +280,11 @@
           <h1 class="text-[22px] font-extrabold tracking-tight leading-tight">Income</h1>
           <p class="text-on-surface-variant text-sm mt-0.5">Track all your income sources in one place.</p>
         </div>
+        <button onclick="openAddIncomePanel()"
+          class="flex items-center gap-2 bg-primary text-on-primary px-5 py-2.5 rounded-xl font-bold hover:brightness-110 transition-all text-sm shadow-lg shadow-primary/15">
+          <span class="material-symbols-outlined" style="font-size:17px;">add</span>
+          Add Income
+        </button>
       </div>
 
       <!-- ── Summary Cards ── -->
@@ -266,136 +352,13 @@
                     </button>
                   </form>
                 </div>
-              </div>
+              </td>
+            </tr>
             {% endfor %}
           </div>
         {% else %}
           <p class="text-xs text-on-surface-variant/60 text-center py-3">No recurring income setups configured yet.</p>
         {% endif %}
-      </div>
-
-      <!-- ── Add / Edit Form ── -->
-      {% set all_sources = [
-        ('Salary', '💼'), ('Freelance', '💻'), ('Business', '🏢'), ('Bonus', '💸'),
-        ('Scholarship', '🎓'), ('Family Support', '👨‍👩‍👧'), ('Investments', '📈'),
-        ('Bank Interest', '🏦'), ('Rental Income', '🏠'), ('Gift', '🎁'),
-        ('Cashback', '💰'), ('Refund', '🔄'), ('Loan Received', '💵'), ('Other', '📋')
-      ] %}
-      <div class="bg-surface-container border border-outline-variant rounded-2xl p-5 mb-6">
-        {% if edit_entry is defined and edit_entry %}
-          <h2 class="text-base font-extrabold mb-0.5">Edit Income</h2>
-          <p class="text-xs text-on-surface-variant mb-4">{{ edit_entry[2] }} • ₹{{ "{:,.0f}".format(edit_entry[4]) }} • {{ edit_entry[5] }}</p>
-          <form action="/edit-income/{{ edit_entry[0] }}" method="POST" id="incomeForm">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-        {% else %}
-          <h2 class="text-base font-extrabold mb-4">Add Income</h2>
-          <form action="/income" method="POST" id="incomeForm">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-        {% endif %}
-
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div>
-              <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Amount (₹)</label>
-              <input type="number" name="amount" step="0.01" min="0" required placeholder="0.00" class="inp"
-                     value="{% if edit_entry is defined and edit_entry %}{{ edit_entry[4] }}{% endif %}">
-            </div>
-            <div>
-              <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Source</label>
-              {% set current_source = edit_entry[2] if (edit_entry is defined and edit_entry) else None %}
-              {% set known_values = all_sources | map(attribute=0) | list %}
-              {% set is_custom = current_source and current_source not in known_values %}
-              <!-- Custom grouped source dropdown -->
-              <div class="custom-dropdown" id="formDropdownWrap">
-                <button type="button" id="formDropdownTrigger"
-                  class="custom-dropdown-trigger"
-                  onclick="toggleDropdown('form')">
-                  <span id="formDropdownLabel">
-                    {% if current_source and not is_custom %}
-                      {% for s, e in all_sources %}{% if s == current_source %}{{ e }} {{ s }}{% endif %}{% endfor %}
-                    {% elif is_custom %}📋 {{ current_source }}
-                    {% else %}💼 Salary{% endif %}
-                  </span>
-                  <span class="material-symbols-outlined chevron">expand_more</span>
-                </button>
-                <div id="formDropdownMenu" class="custom-dropdown-menu" style="display:none;">
-                  <div class="dropdown-group-label">Primary Income</div>
-                  {% for s, e in [('Salary','💼'),('Freelance','💻'),('Business','🏢'),('Bonus','💸')] %}
-                  <div class="dropdown-option {% if current_source==s or (not current_source and s=='Salary') %}selected{% endif %}"
-                       onclick="selectFormSource('{{ s }}','{{ e }} {{ s }}')">
-                    <span class="opt-emoji">{{ e }}</span><span class="opt-label">{{ s }}</span>
-                  </div>{% endfor %}
-                  <div class="dropdown-group-label">Support &amp; Education</div>
-                  {% for s, e in [('Scholarship','🎓'),('Family Support','👨‍👩‍👧'),('Gift','🎁')] %}
-                  <div class="dropdown-option {% if current_source==s %}selected{% endif %}"
-                       onclick="selectFormSource('{{ s }}','{{ e }} {{ s }}')">
-                    <span class="opt-emoji">{{ e }}</span><span class="opt-label">{{ s }}</span>
-                  </div>{% endfor %}
-                  <div class="dropdown-group-label">Investments &amp; Returns</div>
-                  {% for s, e in [('Investments','📈'),('Bank Interest','🏦'),('Rental Income','🏠')] %}
-                  <div class="dropdown-option {% if current_source==s %}selected{% endif %}"
-                       onclick="selectFormSource('{{ s }}','{{ e }} {{ s }}')">
-                    <span class="opt-emoji">{{ e }}</span><span class="opt-label">{{ s }}</span>
-                  </div>{% endfor %}
-                  <div class="dropdown-group-label">Other</div>
-                  {% for s, e in [('Cashback','💰'),('Refund','🔄'),('Loan Received','💵')] %}
-                  <div class="dropdown-option {% if current_source==s %}selected{% endif %}"
-                       onclick="selectFormSource('{{ s }}','{{ e }} {{ s }}')">
-                    <span class="opt-emoji">{{ e }}</span><span class="opt-label">{{ s }}</span>
-                  </div>{% endfor %}
-                  <div class="dropdown-option {% if is_custom or current_source=='Other' %}selected{% endif %}"
-                       onclick="selectFormSource('Other','📋 Other')">
-                    <span class="opt-emoji">📋</span><span class="opt-label">Other (custom)</span>
-                  </div>
-                </div>
-              </div>
-              <input type="text" id="customSource" placeholder="Enter custom source…" class="inp mt-2"
-                     style="display:{{ 'block' if is_custom else 'none' }};"
-                     value="{{ current_source if is_custom else '' }}" oninput="syncSourceField()">
-              <input type="hidden" name="source" id="sourceHidden" value="{{ current_source if current_source else 'Salary' }}">
-            </div>
-            <div>
-              <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Description <span class="normal-case font-normal text-on-surface-variant/60">(optional)</span></label>
-              <input type="text" name="description" placeholder="e.g. June Salary" class="inp"
-                     value="{% if edit_entry is defined and edit_entry %}{{ edit_entry[3] or '' }}{% endif %}">
-            </div>
-            <div>
-              <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Date</label>
-              <input type="date" name="date" required class="inp"
-                     value="{% if edit_entry is defined and edit_entry %}{{ edit_entry[1] }}{% endif %}">
-            </div>
-            {% if user_accounts %}
-            <div>
-              <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Account</label>
-              <select name="account_id" class="inp">
-                {% for acc in user_accounts %}
-                <option value="{{ acc.account_id }}" {% if edit_entry is defined and edit_entry and edit_entry[6] == acc.account_id %}selected{% endif %}>{{ acc.name }} (₹{{ "{:,.2f}".format(acc.balance) }})</option>
-                {% endfor %}
-              </select>
-            </div>
-            {% endif %}
-          </div>
-          <p class="text-[11px] text-on-surface-variant/45 mt-2.5 leading-snug">
-            <span class="font-semibold">Note:</span> Loan Received is tracked as cash inflow, not earned income, in analysis &amp; reports.
-          </p>
-
-          <div class="flex gap-3 mt-5">
-            {% if edit_entry is defined and edit_entry %}
-              <a href="/income"
-                class="flex-1 sm:flex-none text-center py-2.5 px-6 rounded-xl border border-outline-variant text-on-surface-variant hover:bg-surface-container-high transition-all font-bold text-sm">
-                Cancel
-              </a>
-              <button type="submit" id="incomeSubmitBtn"
-                class="flex-1 sm:flex-none bg-primary text-on-primary py-2.5 px-6 rounded-xl font-bold hover:brightness-110 transition-all shadow-lg shadow-primary/15 text-sm">
-                💾 Save Changes
-              </button>
-            {% else %}
-              <button type="submit" id="incomeSubmitBtn"
-                class="flex-1 sm:flex-none bg-primary text-on-primary py-2.5 px-6 rounded-xl font-bold hover:brightness-110 transition-all shadow-lg shadow-primary/15 text-sm">
-                ➕ Add Income
-              </button>
-            {% endif %}
-          </div>
-        </form>
       </div>
 
       <!-- ── Filters ── -->
@@ -511,9 +474,9 @@
               <td class="text-right font-bold text-primary whitespace-nowrap">+₹{{ "{:,.2f}".format(entry[4]) }}</td>
               <td class="text-center">
                 <div class="flex justify-center gap-2">
-                  <a href="/edit-income/{{ entry[0] }}" class="act-btn act-edit" title="Edit">
+                  <button type="button" onclick="openEditIncomePanel({{ entry[0] }}, {{ entry[4] }}, {{ entry[2] | tojson }}, {{ (entry[3] or '') | tojson }}, {{ entry[1] | tojson }}, {{ entry[6] if entry[6] else 'null' }})" class="act-btn act-edit" title="Edit">
                     <span class="material-symbols-outlined" style="font-size:16px;">edit</span>
-                  </a>
+                  </button>
                   <button onclick="confirmDelete({{ entry[0] }})" class="act-btn act-delete" title="Delete">
                     <span class="material-symbols-outlined" style="font-size:16px;">delete</span>
                   </button>
@@ -618,7 +581,75 @@
 </div>
 
 <script>
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeDeleteModal(); closeAllDropdowns(); } });
+const incomePanel   = document.getElementById('incomePanel');
+const panelOverlay = document.getElementById('panelOverlay');
+const incomeForm   = document.getElementById('incomeDrawerForm');
+
+function openAddIncomePanel() {
+    document.getElementById('incomePanelTitle').textContent = 'Add Income';
+    document.getElementById('incomePanelSubmitBtn').textContent = 'Save Income';
+    incomeForm.action = '/income';
+    incomeForm.reset();
+    document.getElementById('drawerDate').value = new Date().toISOString().split('T')[0];
+    incomePanel.classList.add('open');
+    panelOverlay.classList.add('open');
+    document.getElementById('drawerAmount').focus();
+}
+
+function openEditIncomePanel(id, amount, source, description, rawDate, accountId) {
+    document.getElementById('incomePanelTitle').textContent = 'Edit Income';
+    document.getElementById('incomePanelSubmitBtn').textContent = 'Save Changes';
+    incomeForm.action = '/edit-income/' + id;
+    document.getElementById('drawerAmount').value = amount;
+    
+    const sourceSelect = document.getElementById('drawerSource');
+    if (sourceSelect) {
+        let found = false;
+        for (let i = 0; i < sourceSelect.options.length; i++) {
+            if (sourceSelect.options[i].value === source) {
+                sourceSelect.options[i].selected = true;
+                found = true;
+                break;
+            }
+        }
+        if (!found && source) {
+            const opt = document.createElement('option');
+            opt.value = source;
+            opt.textContent = '📋 ' + source;
+            opt.selected = true;
+            sourceSelect.appendChild(opt);
+        }
+    }
+    
+    document.getElementById('drawerDescription').value = description || '';
+    document.getElementById('drawerDate').value        = rawDate || '';
+    if (document.getElementById('drawerAccount') && accountId) {
+        document.getElementById('drawerAccount').value = accountId;
+    }
+    incomePanel.classList.add('open');
+    panelOverlay.classList.add('open');
+    document.getElementById('drawerAmount').focus();
+}
+
+function closeIncomePanel() {
+    incomePanel.classList.remove('open');
+    panelOverlay.classList.remove('open');
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeIncomePanel(); closeDeleteModal(); closeAllDropdowns(); } });
+
+{% if edit_entry is defined and edit_entry %}
+document.addEventListener('DOMContentLoaded', () => {
+  openEditIncomePanel(
+    {{ edit_entry[0] }},
+    {{ edit_entry[4] }},
+    {{ edit_entry[2] | tojson }},
+    {{ (edit_entry[3] or '') | tojson }},
+    {{ edit_entry[1] | tojson }},
+    {{ edit_entry[6] if edit_entry[6] else 'null' }}
+  );
+});
+{% endif %}
 
 // ── Custom Dropdown Logic ──────────────────────────────────────────────────
 let activeDropdown = null;
@@ -664,62 +695,25 @@ document.addEventListener('click', e => {
 
 // ── Filter source dropdown ─────────────────────────────────────────────────
 function selectFilterSource(value, label) {
-  document.getElementById('filterSourceHidden').value = value;
+  const hiddenInput = document.getElementById('filterSourceHidden');
+  if (hiddenInput) hiddenInput.value = value;
   const trigger = document.getElementById('filterDropdownTrigger');
-  document.getElementById('filterDropdownLabel').textContent = label || 'All sources';
-  trigger.classList.toggle('placeholder', !value);
-  // Update selected state
+  const labelEl = document.getElementById('filterDropdownLabel');
+  if (labelEl) labelEl.textContent = label || 'All sources';
+  if (trigger) trigger.classList.toggle('placeholder', !value);
   document.querySelectorAll('#filterDropdownMenu .dropdown-option').forEach(o => {
     o.classList.toggle('selected', o.dataset.val === value || (!value && !o.dataset.val));
   });
   closeAllDropdowns();
-  // Auto-submit the filter form. Note: calling .submit() directly does NOT
-  // fire the form's 'submit' event, so the scroll-preserving listener never
-  // runs for this path — save scroll explicitly here too.
   saveIncomeScroll();
-  trigger.closest('form').submit();
+  if (trigger && trigger.closest('form')) trigger.closest('form').submit();
 }
 
-// ── Form source dropdown ───────────────────────────────────────────────────
-function selectFormSource(value, label) {
-  document.getElementById('sourceHidden').value = value;
-  document.getElementById('formDropdownLabel').textContent = label;
-  // Update selected state
-  document.querySelectorAll('#formDropdownMenu .dropdown-option').forEach(o => o.classList.remove('selected'));
-  event.currentTarget.classList.add('selected');
-  // Show/hide custom input
-  const custom = document.getElementById('customSource');
-  if (value === 'Other') {
-    custom.style.display = 'block';
-    custom.focus();
-    custom.value = '';
-  } else {
-    custom.style.display = 'none';
-    custom.value = '';
-  }
-  closeAllDropdowns();
-}
-
-function syncSourceField() {
-  const custom = document.getElementById('customSource');
-  const hidden = document.getElementById('sourceHidden');
-  if (hidden.value === 'Other' && custom && custom.value.trim()) {
-    hidden.value = custom.value.trim();
-  }
-}
-if (document.getElementById('customSource')) {
-  document.getElementById('customSource').addEventListener('input', syncSourceField);
-}
-
-// keep hidden field correct right before the form is submitted
-const sourceForm = document.querySelector('form[action^="/income"], form[action^="/edit-income"]');
-if (sourceForm) sourceForm.addEventListener('submit', syncSourceField);
-
-// ── Loading state while saving (Add/Edit Income form) ───────────────────────
-const incomeForm = document.getElementById('incomeForm');
-if (incomeForm) {
-  incomeForm.addEventListener('submit', function () {
-    const btn = document.getElementById('incomeSubmitBtn');
+// ── Loading state while saving (Add/Edit Income drawer form) ─────────────────
+const drawerForm = document.getElementById('incomeDrawerForm');
+if (drawerForm) {
+  drawerForm.addEventListener('submit', function () {
+    const btn = document.getElementById('incomePanelSubmitBtn');
     if (btn) {
       btn.disabled = true;
       btn.style.opacity = '0.7';
@@ -729,14 +723,6 @@ if (incomeForm) {
 }
 
 // ── Preserve scroll position across Apply Filters / pagination ─────────────
-// Filtering or paging is a normal full-page GET navigation (needed so the
-// URL stays bookmarkable and Flask sees the query string), but that resets
-// scroll to the top by default. Save the scroll position right before
-// navigating away, then restore it once the new page loads.
-//
-// Tracks both the window and <main> (which has overflow-y-auto) since
-// depending on total page height, either one can end up being the element
-// that's actually scrolling — restoring both is harmless either way.
 function saveIncomeScroll() {
   const main = document.querySelector('main');
   sessionStorage.setItem('incomeScrollWin', window.scrollY || document.documentElement.scrollTop || 0);
@@ -745,42 +731,46 @@ function saveIncomeScroll() {
 document.getElementById('incomeFilterForm')?.addEventListener('submit', saveIncomeScroll);
 
 function restoreIncomeScroll() {
-  const winY = sessionStorage.getItem('incomeScrollWin');
-  const mainY = sessionStorage.getItem('incomeScrollMain');
-  const main = document.querySelector('main');
-  if (winY !== null || mainY !== null) {
-    sessionStorage.removeItem('incomeScrollWin');
-    sessionStorage.removeItem('incomeScrollMain');
-    const apply = () => {
-      if (winY !== null) window.scrollTo(0, parseInt(winY));
-      if (main && mainY !== null) main.scrollTop = parseInt(mainY);
-    };
-    apply();
-    requestAnimationFrame(apply);
+  try {
+    const winY = sessionStorage.getItem('incomeScrollWin');
+    const mainY = sessionStorage.getItem('incomeScrollMain');
+    const main = document.querySelector('main');
+    if (winY !== null || mainY !== null) {
+      sessionStorage.removeItem('incomeScrollWin');
+      sessionStorage.removeItem('incomeScrollMain');
+      const apply = () => {
+        if (winY !== null) window.scrollTo(0, parseInt(winY));
+        if (main && mainY !== null) main.scrollTop = parseInt(mainY);
+      };
+      apply();
+      requestAnimationFrame(apply);
+    }
+  } catch (e) {
+    console.error(e);
+  } finally {
+    document.documentElement.style.visibility = '';
   }
-  // Reveal now that we're positioned correctly (or immediately if there was
-  // nothing to restore) — the head script hid the page the instant it
-  // started loading, so this is the moment the jump becomes invisible
-  // instead of a visible "flash at top, then snap down".
-  document.documentElement.style.visibility = '';
 }
 restoreIncomeScroll();
 
 // ── Delete modal ───────────────────────────────────────────────────────────
 const deleteModal = document.getElementById('deleteModal');
 function confirmDelete(id) {
-    document.getElementById('deleteConfirmForm').action = '/delete-income/' + id;
-    deleteModal.classList.add('open');
+    const form = document.getElementById('deleteConfirmForm');
+    if (form) form.action = '/delete-income/' + id;
+    if (deleteModal) deleteModal.classList.add('open');
 }
 function closeDeleteModal() {
-    deleteModal.classList.remove('open');
+    if (deleteModal) deleteModal.classList.remove('open');
 }
 
 // ── Toast (single bottom-right, consistent with the rest of the app) ───────
 function showToast(message, type) {
     const toast = document.getElementById('toast');
     const icon  = document.getElementById('toastIcon');
-    document.getElementById('toastMsg').textContent = message;
+    const msgEl = document.getElementById('toastMsg');
+    if (!toast || !icon || !msgEl) return;
+    msgEl.textContent = message;
     icon.textContent = type === 'error' ? 'error' : 'check_circle';
     icon.className = 'material-symbols-outlined ' + (type === 'error' ? 'text-error' : 'text-primary');
     icon.style.fontSize = '16px';

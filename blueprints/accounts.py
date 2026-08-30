@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, request, redirect, session, flash,
 from werkzeug.security import check_password_hash
 from db import get_db
 from services.account_service import (
-    get_accounts_summary, create_account, update_account, archive_account, delete_account, ACCOUNT_TYPES
+    get_accounts_summary, create_account, update_account, archive_account, restore_account, delete_account, ACCOUNT_TYPES
 )
 
 accounts_bp = Blueprint('accounts', __name__)
@@ -75,9 +75,28 @@ def toggle_account(account_id):
 
     user_id = session['user_id']
     with get_db() as (conn, cursor):
-        archive_account(cursor, user_id, account_id)
+        cursor.execute("SELECT is_active, name FROM accounts WHERE account_id=%s AND user_id=%s", (account_id, user_id))
+        row = cursor.fetchone()
+        if row:
+            if row[0]:
+                archive_account(cursor, user_id, account_id)
+                flash(f"Account '{row[1]}' archived.", 'success')
+            else:
+                restore_account(cursor, user_id, account_id)
+                flash(f"Account '{row[1]}' restored successfully!", 'success')
 
-    flash('Account archived successfully!', 'success')
+    return redirect('/accounts')
+
+@accounts_bp.route('/restore-account/<int:account_id>', methods=['POST'])
+def unarchive_account(account_id):
+    if 'user_id' not in session:
+        return redirect('/login')
+
+    user_id = session['user_id']
+    with get_db() as (conn, cursor):
+        restore_account(cursor, user_id, account_id)
+
+    flash('Account restored successfully!', 'success')
     return redirect('/accounts')
 
 @accounts_bp.route('/delete-account/<int:account_id>', methods=['POST'])

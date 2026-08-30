@@ -144,22 +144,40 @@
         <a href="/goals" class="flex items-center gap-2 text-on-surface-variant hover:text-on-surface text-sm font-semibold transition-colors">
           <span class="material-symbols-outlined" style="font-size:18px;">arrow_back</span> Back to Goals
         </a>
-        {% if not goal.is_closed %}
         <div class="flex items-center gap-2">
-          <a href="/edit-goal/{{ goal.id }}" class="flex items-center gap-1.5 border border-outline-variant text-on-surface-variant px-3.5 py-2 rounded-xl font-bold hover:bg-surface-container-high transition-all text-xs">
-            <span class="material-symbols-outlined" style="font-size:15px;">edit</span> Edit
-          </a>
-          <button type="button" onclick="openCloseConfirm()" class="flex items-center gap-1.5 border border-error/30 text-error/80 px-3.5 py-2 rounded-xl font-bold hover:bg-error/10 transition-all text-xs">
-            <span class="material-symbols-outlined" style="font-size:15px;">flag</span> Close Goal
-          </button>
+          {% if not goal.is_closed %}
+            <a href="/edit-goal/{{ goal.id }}" class="flex items-center gap-1.5 border border-outline-variant text-on-surface-variant px-3.5 py-2 rounded-xl font-bold hover:bg-surface-container-high transition-all text-xs">
+              <span class="material-symbols-outlined" style="font-size:15px;">edit</span> Edit
+            </a>
+            <button type="button" onclick="openCloseConfirm()" class="flex items-center gap-1.5 border border-amber-400/30 text-amber-400/90 px-3.5 py-2 rounded-xl font-bold hover:bg-amber-400/10 transition-all text-xs">
+              <span class="material-symbols-outlined" style="font-size:15px;">flag</span> Close Goal
+            </button>
+          {% else %}
+            <form action="/restore-goal/{{ goal.id }}" method="POST" class="inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+              <button type="submit" class="flex items-center gap-1.5 border border-primary/40 text-primary px-3.5 py-2 rounded-xl font-bold hover:bg-primary/10 transition-all text-xs">
+                <span class="material-symbols-outlined" style="font-size:15px;">unarchive</span> Restore Goal
+              </button>
+            </form>
+            <a href="/edit-goal/{{ goal.id }}" class="flex items-center gap-1.5 border border-outline-variant text-on-surface-variant px-3.5 py-2 rounded-xl font-bold hover:bg-surface-container-high transition-all text-xs">
+              <span class="material-symbols-outlined" style="font-size:15px;">edit</span> Edit
+            </a>
+          {% endif %}
+          <form action="/delete-goal/{{ goal.id }}" method="POST" class="inline" onsubmit="return confirm('Permanently delete this goal? This cannot be undone.')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <button type="submit" class="flex items-center gap-1.5 border border-error/30 text-error/80 px-3.5 py-2 rounded-xl font-bold hover:bg-error/10 transition-all text-xs">
+              <span class="material-symbols-outlined" style="font-size:15px;">delete</span> Delete
+            </button>
+          </form>
         </div>
-        {% endif %}
       </div>
 
       {% if goal.is_closed %}
-      <div class="flex items-center gap-2.5 bg-on-surface-variant/8 border border-outline-variant text-on-surface-variant text-xs font-semibold px-4 py-3 rounded-xl mb-5">
-        <span class="material-symbols-outlined" style="font-size:16px;">inventory_2</span>
-        This goal is closed and read-only. Restore it from the Goals page to make changes.
+      <div class="flex items-center justify-between gap-2.5 bg-on-surface-variant/8 border border-outline-variant text-on-surface-variant text-xs font-semibold px-4 py-3 rounded-xl mb-5">
+        <div class="flex items-center gap-2">
+          <span class="material-symbols-outlined" style="font-size:16px;">inventory_2</span>
+          This goal is closed. Click 'Restore Goal' to return it to Active status.
+        </div>
       </div>
       {% endif %}
 
@@ -183,17 +201,20 @@
             <div class="flex items-center justify-center sm:justify-start gap-2 mb-1 flex-wrap">
               <h1 class="text-xl font-extrabold tracking-tight">{{ goal.name }}</h1>
               <span id="statusBadge">
-                {% if goal.status == 'target_reached' %}
+                {% if goal.is_closed or goal.status == 'closed' %}
+                <span class="inline-flex items-center gap-1 text-[11px] font-extrabold px-2.5 py-1 rounded-lg bg-red-500/15 text-red-400 border border-red-500/30 uppercase tracking-wide">🔒 CLOSED</span>
+                {% elif goal.status == 'target_reached' %}
                 <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg bg-amber-400/10 text-amber-400">✔ Target Reached</span>
                 {% elif goal.status == 'overdue' %}
                 <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg bg-error/10 text-error">⚠ Overdue</span>
-              {% elif goal.status == 'closed' %}
-              <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg bg-on-surface-variant/10 text-on-surface-variant">Closed</span>
-              {% else %}
-              <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg bg-primary/10 text-primary">In Progress</span>
-              {% endif %}
+                {% else %}
+                <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg bg-primary/10 text-primary">In Progress</span>
+                {% endif %}
+              </span>
             </div>
-            {% if goal.target_date_display %}
+            {% if goal.is_closed %}
+            <p class="text-xs font-semibold text-on-surface-variant mb-4">Closed on {{ goal.closed_at_display or goal.closed_at or 'recently' }}</p>
+            {% elif goal.target_date_display %}
             <p class="text-xs text-on-surface-variant mb-4">Target date: {{ goal.target_date_display }}</p>
             {% else %}
             <p class="text-xs text-on-surface-variant mb-4">No target date set</p>

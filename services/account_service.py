@@ -130,8 +130,33 @@ def adjust_account_on_income_update(cursor, old_account_id, old_amount, new_acco
     if new_account_id:
         update_account_balance(cursor, new_account_id, abs(float(new_amount or 0)))
 
+def get_archived_accounts(cursor, user_id):
+    cursor.execute(
+        'SELECT account_id, name, account_type, balance, currency, is_active, created_at '
+        'FROM accounts WHERE user_id=%s AND is_active=0 ORDER BY account_id ASC',
+        (user_id,)
+    )
+    rows = cursor.fetchall()
+    return [{
+        'account_id': r[0],
+        'id': r[0],
+        'name': r[1],
+        'account_type': r[2],
+        'balance': float(r[3] or 0),
+        'currency': r[4],
+        'is_active': bool(r[5]),
+        'created_at': r[6]
+    } for r in rows]
+
+def restore_account(cursor, user_id, account_id):
+    cursor.execute(
+        'UPDATE accounts SET is_active=1 WHERE account_id=%s AND user_id=%s',
+        (account_id, user_id)
+    )
+
 def get_accounts_summary(cursor, user_id):
     accounts = get_user_accounts(cursor, user_id)
+    archived_accounts = get_archived_accounts(cursor, user_id)
     net_worth = sum(a['balance'] for a in accounts)
     type_totals = {}
     for t_item in ACCOUNT_TYPES:
@@ -142,6 +167,8 @@ def get_accounts_summary(cursor, user_id):
         'net_worth': net_worth,
         'total_accounts': len(accounts),
         'accounts': accounts,
+        'archived_accounts': archived_accounts,
+        'archived_count': len(archived_accounts),
         'type_totals': type_totals,
         'account_types': ACCOUNT_TYPES
     }

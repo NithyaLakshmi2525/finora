@@ -1,5 +1,6 @@
 from datetime import date, timedelta
 from flask import flash
+from services.account_service import get_default_account_id, adjust_account_on_expense_create
 
 def advance_recurring_date(current_date, frequency):
     """Bump a recurring item's next_charge_date forward by one period."""
@@ -42,26 +43,33 @@ def process_due_auto_charges(user_id, cursor, conn, get_notification_prefs_fn, c
 
     for recurring_id, title, amount, category, frequency, next_charge_date in due_items:
         charge_date = next_charge_date
+        account_id = get_default_account_id(cursor, user_id)
         cycles = 0
         while charge_date is not None and charge_date <= today:
             cursor.execute(
-                "INSERT INTO expenses (amount, category, description, expense_date, user_id, recurring_id) "
-                "VALUES (%s, %s, %s, %s, %s, %s)",
-                (amount, category or 'Other', f"{title} (auto-charge)", charge_date, user_id, recurring_id)
+                "SELECT expense_id FROM expenses WHERE recurring_id=%s AND expense_date=%s AND user_id=%s",
+                (recurring_id, charge_date, user_id)
             )
-            charged_total += float(amount)
-            cycles += 1
-            if recurring_prefs and recurring_prefs.get('recurring_reminders'):
-                try:
-                    create_notification_fn(
-                        cursor, user_id, icon='🔄',
-                        title=f"{title} auto-charged",
-                        message=f"₹{float(amount):,.0f} was logged to your expenses.",
-                        link='/recurring',
-                        dedup_key=f"recurring-charged-{recurring_id}-{charge_date.isoformat()}",
-                    )
-                except Exception as e:
-                    print(f"[notifications] auto-charge notification failed (user_id={user_id}, recurring_id={recurring_id}): {e}")
+            if not cursor.fetchone():
+                cursor.execute(
+                    "INSERT INTO expenses (amount, category, description, expense_date, user_id, recurring_id, account_id) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                    (amount, category or 'Other', f"{title} (auto-charge)", charge_date, user_id, recurring_id, account_id)
+                )
+                adjust_account_on_expense_create(cursor, account_id, amount)
+                charged_total += float(amount)
+                cycles += 1
+                if recurring_prefs and recurring_prefs.get('recurring_reminders'):
+                    try:
+                        create_notification_fn(
+                            cursor, user_id, icon='🔄',
+                            title=f"{title} auto-charged",
+                            message=f"₹{float(amount):,.0f} was logged to your expenses.",
+                            link='/recurring',
+                            dedup_key=f"recurring-charged-{recurring_id}-{charge_date.isoformat()}",
+                        )
+                    except Exception as e:
+                        print(f"[notifications] auto-charge notification failed (user_id={user_id}, recurring_id={recurring_id}): {e}")
             charge_date = advance_recurring_date(charge_date, frequency)
         if cycles:
             charged_names.append(title if cycles == 1 else f"{title} ×{cycles}")
