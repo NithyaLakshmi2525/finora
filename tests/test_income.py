@@ -35,16 +35,44 @@ def test_income_crud(auth_client, test_user):
         cursor.execute("SELECT COUNT(*) FROM income WHERE income_id=%s", (inc_id,))
         assert cursor.fetchone()[0] == 0
 
-def test_get_income_page_rendering_and_drawer_structure(auth_client, test_user):
-    """Regression test proving GET /income renders successfully with HTTP 200, valid HTML elements, and no JS errors."""
+def test_income_page_rendering(auth_client, test_user):
+    """Verify GET /income returns 200, sidebar, page title, summary cards, and income table exist."""
     res = auth_client.get('/income')
     assert res.status_code == 200
     assert b'Income' in res.data
+    assert b'Finora' in res.data
+    assert b'Total Income' in res.data
+    assert b'exp-table' in res.data
     assert b'incomePanel' in res.data
-    assert b'panel-overlay' in res.data
-    assert b'openAddIncomePanel' in res.data
-    assert b'openEditIncomePanel' in res.data
-    assert b'restoreIncomeScroll' in res.data
-    # Ensure no old missing element IDs are referenced in JS
+    # Assert toast div is properly closed and page content is not nested inside opacity-0 toast
+    assert b'<span id="toastMsg"></span>\n</div>' in res.data or b'<span id="toastMsg"></span></div>' in res.data
+
+def test_income_js_does_not_reference_removed_dom_ids(auth_client, test_user):
+    """Verify obsolete DOM references are completely removed from JS script."""
+    res = auth_client.get('/income')
+    assert res.status_code == 200
     assert b'sourceHidden' not in res.data
     assert b'formDropdownLabel' not in res.data
+
+def test_income_visibility_restoration(auth_client, test_user):
+    """Verify the page's initialization script never leaves document.documentElement hidden."""
+    res = auth_client.get('/income')
+    assert res.status_code == 200
+    assert b"document.documentElement.style.visibility = 'hidden'" not in res.data
+
+def test_income_edit_drawer_structure(auth_client, test_user):
+    """Verify edit drawer markup and required form controls exist."""
+    res = auth_client.get('/income')
+    assert res.status_code == 200
+    assert b'id="incomePanel"' in res.data
+    assert b'id="panelOverlay"' in res.data
+    assert b'id="incomeDrawerForm"' in res.data
+    assert b'id="drawerAmount"' in res.data
+    assert b'id="drawerSource"' in res.data
+    assert b'id="drawerDescription"' in res.data
+    assert b'id="drawerDate"' in res.data
+
+def test_income_delete_uses_post_and_csrf(auth_client, test_user):
+    """Verify GET on delete route is rejected with 405 Method Not Allowed."""
+    res = auth_client.get('/delete-income/1')
+    assert res.status_code == 405

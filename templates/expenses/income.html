@@ -5,17 +5,9 @@
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Income | Finora</title>
 <script>
-// Runs synchronously before anything renders. If we're about to restore a
-// scroll position, hide the page immediately so the "jump to top, then
-// snap down" is never actually visible — the restore script further down
-// reveals it again once positioned. Has its own 1s safety timeout so a
-// script error elsewhere can never leave the page permanently blank.
 (function () {
   try {
-    if (sessionStorage.getItem('incomeScrollWin') !== null || sessionStorage.getItem('incomeScrollMain') !== null) {
-      document.documentElement.style.visibility = 'hidden';
-      setTimeout(function () { document.documentElement.style.visibility = ''; }, 1000);
-    }
+    document.documentElement.style.visibility = '';
   } catch (e) {}
 })();
 </script>
@@ -197,6 +189,7 @@
   class="fixed bottom-6 right-6 bg-surface-container-high border border-outline-variant text-on-surface text-sm font-semibold px-5 py-3 rounded-xl shadow-2xl z-50 flex items-center gap-2.5 opacity-0 pointer-events-none transition-opacity duration-200">
   <span class="material-symbols-outlined text-primary" id="toastIcon" style="font-size:16px;">check_circle</span>
   <span id="toastMsg"></span>
+</div>
 <!-- Slide-over overlay -->
 <div class="panel-overlay" id="panelOverlay" onclick="closeIncomePanel()"></div>
 
@@ -352,8 +345,7 @@
                     </button>
                   </form>
                 </div>
-              </td>
-            </tr>
+              </div>
             {% endfor %}
           </div>
         {% else %}
