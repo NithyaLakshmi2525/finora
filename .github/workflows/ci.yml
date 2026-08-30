@@ -48,6 +48,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Initialize Database Schema
+        run: |
+          mysql -h 127.0.0.1 -u root -proot_password expense_tracker < database/schema.sql
+
       - name: Run Pytest Suite
         run: |
           python -m pytest
