@@ -168,8 +168,19 @@
               <span class="material-symbols-outlined text-primary" style="font-size:17px;">lock</span>
               <h2 class="text-sm font-bold">Change Password</h2>
             </div>
+            {% if auth_provider == 'google' %}
+            <div class="p-5 flex items-start gap-3 bg-surface-container-high/50">
+              <div class="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0 text-blue-400 mt-0.5">
+                <span class="material-symbols-outlined" style="font-size:18px;">g_mobiledata</span>
+              </div>
+              <div>
+                <p class="text-sm font-bold text-on-surface">Sign-in method: Google</p>
+                <p class="text-xs text-on-surface-variant mt-1 leading-relaxed">This account uses Google to sign in. You don't need a Finora password.</p>
+              </div>
+            </div>
+            {% else %}
             <form action="/profile/change-password" method="POST" class="p-5 flex flex-col gap-4">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
               <div>
                 <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Current Password</label>
                 <div class="relative">
@@ -211,6 +222,7 @@
                 </button>
               </div>
             </form>
+            {% endif %}
           </div>
 
           <!-- Account Info -->
@@ -219,10 +231,17 @@
               <span class="material-symbols-outlined text-primary" style="font-size:17px;">info</span>
               <h2 class="text-sm font-bold">Account Info</h2>
             </div>
-            <div class="p-5">
-              <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Username</label>
-              <input type="text" value="{{ username }}" readonly class="inp"/>
-              <p class="text-xs text-on-surface-variant mt-1.5">Username cannot be changed.</p>
+            <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Username</label>
+                <input type="text" value="{{ username }}" readonly class="inp"/>
+                <p class="text-xs text-on-surface-variant mt-1.5">Username cannot be changed.</p>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Sign-in Method</label>
+                <input type="text" value="{{ 'Google OAuth' if auth_provider == 'google' else 'Password (Local)' }}" readonly class="inp"/>
+                <p class="text-xs text-on-surface-variant mt-1.5">Authentication provider used for login.</p>
+              </div>
             </div>
           </div>
 

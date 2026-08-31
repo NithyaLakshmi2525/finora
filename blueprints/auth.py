@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, session, flash, url_for, current_app
 from werkzeug.security import generate_password_hash, check_password_hash
+import re
 import secrets
 import hashlib
 from datetime import datetime, timedelta
@@ -12,10 +13,30 @@ from services.recurring_service import process_due_auto_charges
 from services.account_service import reset_user_financial_data
 from services.budget_service import get_user_budgets
 from services.email_service import send_password_reset_email
-from services.rate_limiter import check_rate_limit, get_client_ip
+from services.rate_limiter import check_rate_limit, reset_rate_limit, get_client_ip
 from config import Config
 
 auth_bp = Blueprint('auth', __name__)
+
+def validate_password_policy(password: str) -> tuple[bool, str]:
+    """
+    Server-side authoritative password policy validation:
+    1. Password length must be at least 8 characters.
+    2. Password must contain at least one uppercase letter ([A-Z]).
+    3. Password must contain at least one number ([0-9]).
+    4. Password must not be entirely whitespace.
+    5. Spaces inside password are allowed (internal spaces preserved, not stripped before hashing).
+    Returns (is_valid, error_message).
+    """
+    if not password or not password.strip():
+        return False, "Password cannot be empty or only whitespace."
+    if len(password) < 8:
+        return False, "Password must be at least 8 characters long."
+    if not re.search(r'[A-Z]', password):
+        return False, "Password must contain at least one uppercase letter."
+    if not re.search(r'[0-9]', password):
+        return False, "Password must contain at least one number."
+    return True, ""
 
 @auth_bp.route('/landing')
 def landing():
@@ -194,8 +215,9 @@ def register():
             flash("All registration fields are required.", "error")
             return render_template('auth/register.html')
 
-        if not password.strip() or len(password) < 8:
-            flash("Password must be at least 8 characters long and cannot be only whitespace.", "error")
+        is_valid_pw, pw_err = validate_password_policy(password)
+        if not is_valid_pw:
+            flash(pw_err, "error")
             return render_template('auth/register.html')
 
         if password != confirm_password:
@@ -234,9 +256,10 @@ def login():
         return redirect('/')
     if request.method == 'POST':
         client_ip = get_client_ip()
-        allowed, retry_after = check_rate_limit(f"login:{client_ip}", max_requests=10, window_seconds=60)
+        rate_key = f"login:{client_ip}"
+        allowed, retry_after = check_rate_limit(rate_key, max_requests=5, window_seconds=60)
         if not allowed:
-            flash(f"Too many login attempts. Please try again in {retry_after} seconds.", "error")
+            flash(f"Too many failed login attempts. Please try again in {retry_after} seconds.", "error")
             return render_template('auth/login.html'), 429
 
         email = request.form.get('email', '').strip().lower()
@@ -247,6 +270,7 @@ def login():
             user = cursor.fetchone()
 
         if user and check_password_hash(user[2], password):
+            reset_rate_limit(rate_key)
             session['user_id'] = user[0]
             session['username'] = user[1]
             session['display_name'] = user[3] or user[1]
@@ -307,24 +331,36 @@ def profile_update_name():
 def profile_change_password():
     if 'user_id' not in session:
         return redirect('/login')
-    current_password = request.form.get('current_password', '')
-    new_password = request.form.get('new_password', '')
-    confirm_password = request.form.get('confirm_password', '')
-
-    if not current_password or not new_password or not confirm_password:
-        flash("All password fields are required.", "error")
-        return redirect('/profile')
-    if new_password != confirm_password:
-        flash("New passwords do not match. Please try again.", "error")
-        return redirect('/profile')
-    if len(new_password) < 8:
-        flash("New password must be at least 8 characters.", "error")
-        return redirect('/profile')
 
     with get_db() as (conn, cursor):
-        cursor.execute("SELECT password FROM users WHERE user_id=%s", (session['user_id'],))
+        cursor.execute("SELECT password, auth_provider FROM users WHERE user_id=%s", (session['user_id'],))
         row = cursor.fetchone()
-        if not row or not check_password_hash(row[0], current_password):
+        if not row:
+            flash("User not found.", "error")
+            return redirect('/profile')
+
+        user_pw, auth_provider = row[0], row[1]
+        if auth_provider == 'google':
+            flash("This account uses Google to sign in. You don't need a Finora password.", "info")
+            return redirect('/profile')
+
+        current_password = request.form.get('current_password', '')
+        new_password = request.form.get('new_password', '')
+        confirm_password = request.form.get('confirm_password', '')
+
+        if not current_password or not new_password or not confirm_password:
+            flash("All password fields are required.", "error")
+            return redirect('/profile')
+        if new_password != confirm_password:
+            flash("New passwords do not match. Please try again.", "error")
+            return redirect('/profile')
+
+        is_valid_pw, pw_err = validate_password_policy(new_password)
+        if not is_valid_pw:
+            flash(pw_err, "error")
+            return redirect('/profile')
+
+        if not check_password_hash(user_pw, current_password):
             flash("Current password is incorrect.", "error")
             return redirect('/profile')
 
@@ -496,8 +532,9 @@ def reset_password(token):
             new_password = request.form.get('new_password', '')
             confirm_password = request.form.get('confirm_password', '')
 
-            if len(new_password) < 8:
-                flash("Password must be at least 8 characters long.", "error")
+            is_valid_pw, pw_err = validate_password_policy(new_password)
+            if not is_valid_pw:
+                flash(pw_err, "error")
                 return render_template('auth/reset_password.html', token=token)
 
             if new_password != confirm_password:

@@ -1,3 +1,11 @@
+"""
+In-memory sliding window rate limiter service.
+
+Note on Architecture & Scalability:
+This in-memory store is suitable for single-instance application deployments.
+For multi-instance or distributed production environments, counters should be
+stored in a shared data store (e.g. Redis) so rate limit counters are shared across nodes.
+"""
 import time
 from collections import defaultdict
 from flask import request
@@ -9,7 +17,13 @@ def reset_rate_limit_store():
     global _rate_limit_store
     _rate_limit_store.clear()
 
-def check_rate_limit(key, max_requests=10, window_seconds=60):
+def reset_rate_limit(key):
+    """Clears failure rate limit timestamps for a specific key (e.g. on successful authentication)."""
+    global _rate_limit_store
+    if key in _rate_limit_store:
+        _rate_limit_store[key].clear()
+
+def check_rate_limit(key, max_requests=5, window_seconds=60):
     """
     In-memory sliding window rate limiter.
     Returns (is_allowed, retry_after_seconds).
@@ -30,7 +44,8 @@ def check_rate_limit(key, max_requests=10, window_seconds=60):
 
     if len(timestamps) >= max_requests:
         oldest = timestamps[0]
-        retry_after = max(1, int(window_seconds - (now - oldest)))
+        base_retry = window_seconds - (now - oldest)
+        retry_after = max(10, int(base_retry))
         return False, retry_after
 
     _rate_limit_store[key].append(now)

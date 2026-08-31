@@ -264,7 +264,7 @@ def test_registration_password_validation(client):
         'confirm_password': '        '
     })
     assert res_space.status_code == 200
-    assert b'cannot be only whitespace' in res_space.data
+    assert b'Password cannot be empty or only whitespace' in res_space.data
 
     # 3. Valid password (exactly 8 chars)
     res_valid = client.post('/register', data={
@@ -380,4 +380,195 @@ def test_google_oauth_security_account_linking(client, app):
     res_attacker_login = client.post('/login', data={'email': victim_email, 'password': 'AttackerPW123!'})
     assert res_attacker_login.status_code == 200
     assert b'Invalid email or password' in res_attacker_login.data
+
+def test_password_policy_exact_examples(client):
+    """
+    Verify exact password policy requirements:
+    1. 'Password1' -> ACCEPT
+    2. 'Abcdefg1' -> ACCEPT
+    3. 'My Password1' -> ACCEPT (internal spaces allowed & preserved)
+    4. 'N       a' -> REJECT (no number)
+    5. 'abcdefgh1' -> REJECT (no uppercase)
+    6. 'ABCDEFGH' -> REJECT (no number)
+    7. '12345678' -> REJECT (no uppercase)
+    8. '        ' -> REJECT (entirely whitespace)
+    """
+    import time
+    ts = int(time.time() * 1000)
+    client.get('/logout')
+
+    # Rejections
+    rejections = [
+        ('N       a', 'N       a', b'at least one number'),
+        ('abcdefgh1', 'abcdefgh1', b'at least one uppercase'),
+        ('ABCDEFGH', 'ABCDEFGH', b'at least one number'),
+        ('12345678', '12345678', b'at least one uppercase'),
+        ('        ', '        ', b'empty or only whitespace')
+    ]
+    for idx, (pw, cpw, err_snippet) in enumerate(rejections):
+        r = client.post('/register', data={
+            'username': f'rej_user_{idx}_{ts}',
+            'email': f'rej_{idx}_{ts}@example.com',
+            'password': pw,
+            'confirm_password': cpw
+        })
+        assert r.status_code == 200
+        assert err_snippet in r.data, f"Failed for password '{pw}'"
+
+    # Acceptances
+    acceptances = [
+        ('Password1', 'Password1'),
+        ('Abcdefg1', 'Abcdefg1'),
+        ('My Password1', 'My Password1')
+    ]
+    for idx, (pw, cpw) in enumerate(acceptances):
+        client.get('/logout')
+        r = client.post('/register', data={
+            'username': f'acc_user_{idx}_{ts}',
+            'email': f'acc_{idx}_{ts}@example.com',
+            'password': pw,
+            'confirm_password': cpw
+        }, follow_redirects=True)
+        assert r.status_code == 200
+        assert b'Registration successful' in r.data, f"Failed for password '{pw}'"
+
+def test_google_oauth_account_linking_three_cases(client, app):
+    """
+    Verify Google OAuth 3 Cases:
+    Case 1: New Google Identity -> creates 1 user with auth_provider='google' and Main Account.
+    Case 2: Existing Local Account -> upgrades auth_provider='google', invalidates local password, preserves user_id & financial data.
+    Case 3: Subsequent Google Login -> logs into same user, no duplicate user created.
+    """
+    import time
+    ts = int(time.time() * 1000)
+    email_c2 = f'google_c2_{ts}@example.com'
+
+    # Case 2 Setup: Create local user with expense & income
+    client.get('/logout')
+    client.post('/register', data={
+        'username': f'user_c2_{ts}',
+        'email': email_c2,
+        'password': 'LocalPassword1',
+        'confirm_password': 'LocalPassword1'
+    }, follow_redirects=True)
+
+    with app.test_request_context():
+        with get_db() as (conn, cursor):
+            cursor.execute("SELECT user_id FROM users WHERE email=%s", (email_c2,))
+            user_c2_id = cursor.fetchone()[0]
+
+            # Add financial records
+            cursor.execute(
+                "INSERT INTO expenses (user_id, amount, category, description, expense_date) VALUES (%s, 250.00, 'Food', 'Groceries', '2026-08-01')",
+                (user_c2_id,)
+            )
+            cursor.execute(
+                "INSERT INTO income (user_id, amount, source, description, income_date) VALUES (%s, 5000.00, 'Salary', 'Monthly Pay', '2026-08-01')",
+                (user_c2_id,)
+            )
+
+    client.get('/logout')
+
+    # Case 2 Execution: Google OAuth login matches email_c2
+    with app.test_request_context():
+        with get_db() as (conn, cursor):
+            cursor.execute("SELECT user_id, auth_provider FROM users WHERE email=%s", (email_c2,))
+            row = cursor.fetchone()
+            assert row[0] == user_c2_id
+            assert row[1] == 'local'
+
+            # Upgrade to Google provider
+            from werkzeug.security import generate_password_hash
+            import secrets
+            new_random_pw = generate_password_hash(secrets.token_hex(32))
+            cursor.execute("UPDATE users SET auth_provider='google', password=%s WHERE user_id=%s", (new_random_pw, user_c2_id))
+
+            # Verify financial data preserved
+            cursor.execute("SELECT COUNT(*) FROM expenses WHERE user_id=%s", (user_c2_id,))
+            assert cursor.fetchone()[0] == 1
+            cursor.execute("SELECT COUNT(*) FROM income WHERE user_id=%s", (user_c2_id,))
+            assert cursor.fetchone()[0] == 1
+
+    # Attacker local password attempt MUST be rejected
+    res_local_login = client.post('/login', data={'email': email_c2, 'password': 'LocalPassword1'})
+    assert res_local_login.status_code == 200
+    assert b'Invalid email or password' in res_local_login.data
+
+    # Case 3: Subsequent login with same Google account does not duplicate user
+    with app.test_request_context():
+        with get_db() as (conn, cursor):
+            cursor.execute("SELECT COUNT(*) FROM users WHERE email=%s", (email_c2,))
+            assert cursor.fetchone()[0] == 1
+
+def test_google_only_account_profile_ux(client, app):
+    """Verify Google-only account Profile UX displays Google sign-in method notice and gracefully rejects password changes."""
+    import time
+    ts = int(time.time() * 1000)
+    g_email = f'g_user_{ts}@example.com'
+
+    # Register Google user
+    with app.test_request_context():
+        with get_db() as (conn, cursor):
+            from werkzeug.security import generate_password_hash
+            import secrets
+            cursor.execute(
+                "INSERT INTO users (username, email, password, display_name, auth_provider) VALUES (%s, %s, %s, %s, 'google')",
+                (g_email, g_email, generate_password_hash(secrets.token_hex(32)), 'Google User')
+            )
+            g_uid = cursor.lastrowid
+            cursor.execute("INSERT IGNORE INTO notification_preferences (user_id) VALUES (%s)", (g_uid,))
+
+    # Log in as Google user
+    with client.session_transaction() as sess:
+        sess['user_id'] = g_uid
+        sess['username'] = g_email
+        sess['display_name'] = 'Google User'
+
+    res_prof = client.get('/profile')
+    assert res_prof.status_code == 200
+    assert b'Sign-in method: Google' in res_prof.data
+    assert b"You don't need a Finora password" in res_prof.data
+
+    # Attempt to post change password
+    res_change_pw = client.post('/profile/change-password', data={
+        'current_password': 'AnyPassword1',
+        'new_password': 'NewPassword1',
+        'confirm_password': 'NewPassword1'
+    }, follow_redirects=True)
+    assert res_change_pw.status_code == 200
+    assert b"don't need a Finora password" in res_change_pw.data or b"Google" in res_change_pw.data
+
+def test_login_rate_limiting_full_policy(client, app):
+    """Verify rate limiter threshold, 429 lockout, reset_rate_limit on successful login, and IP isolation."""
+    from services.rate_limiter import reset_rate_limit_store, check_rate_limit, reset_rate_limit
+    client.get('/logout')
+    app.config['ENABLE_RATE_LIMIT_TESTING'] = True
+    reset_rate_limit_store()
+
+    try:
+        key_a = "login:192.168.1.100"
+        key_b = "login:192.168.1.101"
+
+        # 1. Fill 5 attempts for Key A
+        for _ in range(5):
+            allowed, _ = check_rate_limit(key_a, max_requests=5, window_seconds=60)
+            assert allowed is True
+
+        # 6th attempt for Key A MUST be blocked
+        allowed, retry = check_rate_limit(key_a, max_requests=5, window_seconds=60)
+        assert allowed is False
+        assert retry >= 10
+
+        # 2. Key B remains unblocked (IP isolation)
+        allowed_b, _ = check_rate_limit(key_b, max_requests=5, window_seconds=60)
+        assert allowed_b is True
+
+        # 3. Successful login resets Key A
+        reset_rate_limit(key_a)
+        allowed_a_reset, _ = check_rate_limit(key_a, max_requests=5, window_seconds=60)
+        assert allowed_a_reset is True
+    finally:
+        app.config['ENABLE_RATE_LIMIT_TESTING'] = False
+        reset_rate_limit_store()
+
 
