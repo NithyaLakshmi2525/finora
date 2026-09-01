@@ -119,7 +119,7 @@ expense-tracker/
 │   ├── recurring/             # Recurring subscriptions view
 │   └── error.html             # Custom Finora error page
 ├── database/                  # Schema SQL dumps
-├── tests/                     # Automated Test Suite (57 tests)
+├── tests/                     # Automated Test Suite (72 tests)
 └── .github/
     └── workflows/
         └── ci.yml             # GitHub Actions CI pipeline

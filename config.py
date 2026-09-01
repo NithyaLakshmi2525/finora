@@ -2,7 +2,7 @@ import os
 from datetime import timedelta
 try:
     from dotenv import load_dotenv
-    load_dotenv()
+    load_dotenv(override=False)
 except ImportError:
     pass
 
@@ -10,8 +10,17 @@ class Config:
     # Debug mode
     DEBUG = os.getenv("FLASK_DEBUG", "0").lower() in ("1", "true", "yes")
 
-    # Secret Key for sessions
-    SECRET_KEY = os.environ.get("SECRET_KEY", "default-dev-secret-key-change-in-production")
+    # Secret Key for sessions (SEC-4 Fix: Fail fast in production if SECRET_KEY is missing)
+    _secret_key = os.environ.get("SECRET_KEY")
+    _env_type = os.getenv("FLASK_ENV", os.getenv("ENV", "development")).lower()
+    _is_prod = _env_type in ("production", "prod") or (os.getenv("FLASK_DEBUG", "0").lower() not in ("1", "true", "yes") and _env_type != "testing")
+
+    if not _secret_key:
+        if _is_prod:
+            raise RuntimeError("CRITICAL CONFIGURATION ERROR: SECRET_KEY environment variable must be set in production mode!")
+        _secret_key = "dev-secret-key-testing-only"
+
+    SECRET_KEY = _secret_key
 
     # Session Security Flags
     SESSION_COOKIE_HTTPONLY = True

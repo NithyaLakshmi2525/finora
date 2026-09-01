@@ -52,7 +52,17 @@ def check_rate_limit(key, max_requests=5, window_seconds=60):
     return True, 0
 
 def get_client_ip():
-    """Extracts client IP address safely from request headers or remote_addr."""
-    if request.headers.get('X-Forwarded-For'):
-        return request.headers.get('X-Forwarded-For').split(',')[0].strip()
+    """
+    Extracts client IP address for rate limiting.
+    Uses request.remote_addr to prevent rate limiter bypass via spoofed X-Forwarded-For headers.
+    If TRUST_PROXY is explicitly enabled in app config, inspects X-Forwarded-For.
+    """
+    try:
+        from flask import current_app
+        if current_app and current_app.config.get('TRUST_PROXY'):
+            xff = request.headers.get('X-Forwarded-For')
+            if xff:
+                return xff.split(',')[0].strip()
+    except RuntimeError:
+        pass
     return request.remote_addr or '127.0.0.1'

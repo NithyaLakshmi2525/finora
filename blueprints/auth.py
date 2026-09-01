@@ -632,14 +632,22 @@ def authorize_google():
         display_name = user_info.get('name') or google_email.split('@')[0]
 
         with get_db() as (conn, cursor):
-            cursor.execute("SELECT user_id, username, display_name, auth_provider FROM users WHERE email=%s OR username=%s", (google_email, google_email))
+            # SEC-2 Fix: Account linking MUST be based ONLY on the verified Google email
+            cursor.execute("SELECT user_id, username, display_name, auth_provider FROM users WHERE email=%s", (google_email,))
             user = cursor.fetchone()
 
             if not user:
+                # Ensure chosen username does not collide with an existing username registered by another account
+                cursor.execute("SELECT user_id FROM users WHERE username=%s", (google_email,))
+                if cursor.fetchone():
+                    chosen_username = f"{google_email}_google"
+                else:
+                    chosen_username = google_email
+
                 random_pw = generate_password_hash(secrets.token_hex(32))
                 cursor.execute(
                     "INSERT INTO users (username, email, password, display_name, auth_provider) VALUES (%s, %s, %s, %s, 'google')",
-                    (google_email, google_email, random_pw, display_name)
+                    (chosen_username, google_email, random_pw, display_name)
                 )
                 user_id = cursor.lastrowid
                 cursor.execute("INSERT IGNORE INTO notification_preferences (user_id) VALUES (%s)", (user_id,))
@@ -647,7 +655,7 @@ def authorize_google():
                     "INSERT INTO accounts (user_id, name, account_type, balance, currency) VALUES (%s, 'Main Account', 'checking', 0.00, 'INR')",
                     (user_id,)
                 )
-                username = google_email
+                username = chosen_username
             else:
                 user_id, username, existing_display_name, auth_provider = user[0], user[1], user[2], user[3]
                 display_name = existing_display_name or display_name

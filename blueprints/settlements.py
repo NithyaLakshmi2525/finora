@@ -84,7 +84,8 @@ def settlements():
 
             amount = raw_amount if direction == 'they_owe_me' else -abs(raw_amount)
             reason = request.form.get('reason', '').strip() or None
-            counts_as_expense = 1 if request.form.get('counts_as_expense') else 0
+            # BUG 1 Enforcement: counts_as_expense is only valid for 'owe_them' (I owe them)
+            counts_as_expense = 1 if (direction == 'owe_them' and request.form.get('counts_as_expense')) else 0
             txn_date = request.form.get('txn_date') or request.form.get('balance_date') or date.today().isoformat()
             expense_category = request.form.get('expense_category', 'Other').strip() or 'Other'
             linked_expense_id = request.form.get('linked_expense_id') or None
@@ -231,7 +232,7 @@ def edit_settlement(settlement_id):
 
     amount = raw_amount if direction == 'they_owe_me' else -abs(raw_amount)
     reason = request.form.get('reason', '').strip() or None
-    counts_as_expense = 1 if request.form.get('counts_as_expense') else 0
+    counts_as_expense = 1 if (direction == 'owe_them' and request.form.get('counts_as_expense')) else 0
     txn_date = request.form.get('txn_date') or request.form.get('balance_date') or date.today().isoformat()
     expense_category = request.form.get('expense_category', 'Other').strip() or 'Other'
 
@@ -241,7 +242,7 @@ def edit_settlement(settlement_id):
             expense_category = 'Other'
 
         cursor.execute(
-            "SELECT status, counts_as_expense, linked_expense_id FROM settlements "
+            "SELECT status, counts_as_expense, linked_expense_id, amount FROM settlements "
             "WHERE settlement_id=%s AND user_id=%s",
             (settlement_id, user_id)
         )
@@ -249,7 +250,13 @@ def edit_settlement(settlement_id):
         if not existing:
             return jsonify({'error': 'Balance not found.'}), 404
 
-        old_counts, linked_exp_id = bool(existing[1]), existing[2]
+        status, old_counts, linked_exp_id, existing_amount = existing[0], bool(existing[1]), existing[2], float(existing[3] or 0.0)
+
+        # BUG 2 Server-side Enforcement: Settled settlements lock financial fields!
+        if status == 'settled':
+            existing_dir = 'they_owe_me' if existing_amount > 0 else 'owe_them'
+            if (abs(amount - existing_amount) > 0.001) or (direction != existing_dir) or (counts_as_expense != int(old_counts)):
+                return jsonify({'error': 'Financial details are locked because this balance is settled. Reopen balance to edit financial details.'}), 400
 
         if counts_as_expense:
             exp_desc = balance_expense_description(peer_name, reason)

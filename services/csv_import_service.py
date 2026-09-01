@@ -39,6 +39,8 @@ def parse_and_preview_csv(cursor, user_id, file_content_str, account_id=None):
         return {'error': 'Could not auto-detect Date and Amount columns in CSV.', 'rows': []}
 
     parsed_rows = []
+    seen_in_file = set()
+
     for idx, raw_row in enumerate(rows[1:], start=2):
         if not raw_row or all(not cell.strip() for cell in raw_row):
             continue
@@ -64,11 +66,20 @@ def parse_and_preview_csv(cursor, user_id, file_content_str, account_id=None):
 
         is_duplicate = False
         if is_valid:
-            cursor.execute(
-                "SELECT COUNT(*) FROM expenses WHERE user_id=%s AND expense_date=%s AND amount=%s AND description=%s",
-                (user_id, parsed_date, parsed_amt, raw_desc)
-            )
-            is_duplicate = (cursor.fetchone()[0] > 0)
+            sig = (parsed_date, parsed_amt, (raw_desc or 'CSV Import').strip().lower())
+            if sig in seen_in_file:
+                is_duplicate = True
+                error_msg = "Duplicate row within the uploaded CSV"
+            else:
+                cursor.execute(
+                    "SELECT COUNT(*) FROM expenses WHERE user_id=%s AND expense_date=%s AND amount=%s AND description=%s",
+                    (user_id, parsed_date, parsed_amt, raw_desc)
+                )
+                if cursor.fetchone()[0] > 0:
+                    is_duplicate = True
+                    error_msg = "Duplicate of existing transaction in database"
+                else:
+                    seen_in_file.add(sig)
 
         parsed_rows.append({
             'row_num': idx,
@@ -89,6 +100,8 @@ def commit_imported_csv_rows(cursor, user_id, selected_rows, account_id=None):
         account_id = get_default_account_id(cursor, user_id)
 
     imported_count = 0
+    seen_in_batch = set()
+
     for r in selected_rows:
         amount = float(r.get('amount', 0))
         category = r.get('category', 'Other') or 'Other'
@@ -96,6 +109,19 @@ def commit_imported_csv_rows(cursor, user_id, selected_rows, account_id=None):
         expense_date = r.get('expense_date')
 
         if amount > 0 and expense_date:
+            sig = (expense_date, amount, description.strip().lower())
+            if sig in seen_in_batch:
+                continue
+
+            # Prevent duplicate insertion against existing DB records
+            cursor.execute(
+                "SELECT COUNT(*) FROM expenses WHERE user_id=%s AND expense_date=%s AND amount=%s AND description=%s",
+                (user_id, expense_date, amount, description)
+            )
+            if cursor.fetchone()[0] > 0:
+                continue
+
+            seen_in_batch.add(sig)
             cursor.execute(
                 "INSERT INTO expenses (user_id, amount, category, description, expense_date, account_id) "
                 "VALUES (%s, %s, %s, %s, %s, %s)",

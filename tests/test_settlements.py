@@ -8,7 +8,7 @@ def test_peer_settlements_and_ledger_integration(auth_client, test_user):
     # Add Peer Balance
     res = auth_client.post('/settlements', data={
         'peer_name': 'Charlie',
-        'direction': 'they_owe_me',
+        'direction': 'owe_them',
         'amount': '1200.00',
         'reason': 'Dinner Split',
         'txn_date': '2026-08-25',

@@ -233,7 +233,7 @@
                 <input type="checkbox" name="counts_as_expense" id="addCountsAsExpense" class="accent-primary" onchange="document.getElementById('addExpenseCategoryWrap').style.display = this.checked ? 'block' : 'none';">
                 <span class="font-semibold text-on-surface">Counts as expense</span>
               </label>
-              <p class="text-[11px] text-on-surface-variant/60 mt-1.5">The money hasn't left your account yet — adds it to your Expenses, Dashboard, and Reports.</p>
+              <p class="text-[11px] text-on-surface-variant/60 mt-1.5">Recorded as an expense now. Your account balance changes when you settle.</p>
               <div id="addExpenseCategoryWrap" class="mt-2.5" style="display:none;">
                 <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Category</label>
                 <select name="expense_category" id="addExpenseCategory" class="inp">
@@ -384,6 +384,10 @@
     </div>
     <form id="editForm" class="flex flex-col gap-4" onsubmit="return submitEditBalance(event)">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <div id="settledLockedBanner" style="display:none;" class="p-3 bg-surface-container-high border border-outline-variant rounded-xl text-xs text-on-surface-variant flex items-center gap-2">
+        <span class="material-symbols-outlined text-secondary" style="font-size:16px;">lock</span>
+        <span>Financial details are locked because this balance is settled. <button type="button" id="editReopenBtn" class="text-primary font-bold hover:underline">Reopen balance</button> to edit financial details.</span>
+      </div>
       <div>
         <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Person</label>
         <input type="text" id="editPeerName" required class="minp">
@@ -412,7 +416,7 @@
           <input type="checkbox" id="editCountsAsExpense" class="accent-primary" onchange="document.getElementById('editExpenseCategoryWrap').style.display = this.checked ? 'block' : 'none';">
           <span class="font-semibold text-on-surface">Counts as expense</span>
         </label>
-        <p class="text-[11px] text-on-surface-variant/60 mt-1.5">The money hasn't left your account yet — adds it to your Expenses, Dashboard, and Reports.</p>
+        <p class="text-[11px] text-on-surface-variant/60 mt-1.5">Recorded as an expense now. Your account balance changes when you settle.</p>
         <div id="editExpenseCategoryWrap" class="mt-2.5" style="display:none;">
           <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Category</label>
           <select id="editExpenseCategory" class="minp"></select>
@@ -841,6 +845,13 @@ function proceedReopen() {
 }
 
 // ── Edit ─────────────────────────────────────────────────────────────────
+function handleReopenClickDirect(id, name) {
+  closeFloatingMenu();
+  pendingReopenId = id;
+  document.getElementById('reopenModalName').textContent = name;
+  document.getElementById('reopenModal').classList.add('open');
+}
+
 let editingId = null;
 let editingStatus = 'active';
 function handleEditClick(btn) {
@@ -864,8 +875,26 @@ function handleEditClick(btn) {
   document.getElementById('editExpenseCategoryWrap').style.display = b.counts_as_expense ? 'block' : 'none';
   updateEditDirectionUI();
 
+  const isSettled = (editingStatus === 'settled');
+  document.getElementById('editAmount').disabled = isSettled;
+  document.getElementById('editDirectionTheyOwe').disabled = isSettled;
+  document.getElementById('editDirectionIOwe').disabled = isSettled;
+  document.getElementById('editCountsAsExpense').disabled = isSettled;
+  document.getElementById('editLinkedExpense').disabled = isSettled;
+
+  const banner = document.getElementById('settledLockedBanner');
+  if (isSettled) {
+    banner.style.display = 'flex';
+    document.getElementById('editReopenBtn').onclick = function() {
+      closeEditModal();
+      handleReopenClickDirect(b.id, b.peer_name);
+    };
+  } else {
+    banner.style.display = 'none';
+  }
+
   const settledWrap = document.getElementById('editSettledDateWrap');
-  if (editingStatus === 'settled') {
+  if (isSettled) {
     document.getElementById('editSettledDate').value = b.settled_date;
     settledWrap.style.display = 'block';
     document.getElementById('editPartialHint').style.display = 'none';
